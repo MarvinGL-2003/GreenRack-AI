@@ -56,6 +56,8 @@ Un sistema que **predice y previene** los puntos calientes en servidores, enfria
 
 4. **Ahorro de energía**: Reducir el gasto en ventilación en **15% - 25%**.
 
+### 📌 Prototipo UX/UI: https://www.figma.com/make/IfLXfa8HNK8DFhI1w2sqp8/Sistema-de-Optimizaci%C3%B3n-T%C3%A9rmica-Proactiva-y-Eficiencia-Energ%C3%A9tica-para-Centros-de-Datos?code-node-id=0-6&p=f&t=mmdsLzLHYBYBAjbU-0&fullscreen=1
+
 ---
 
 ## 3. Tecnologías Clave
@@ -267,7 +269,7 @@ Un sistema que **predice y previene** los puntos calientes en servidores, enfria
 
 **Reportes y datos históricos**
 
-![Historial](media/image10.png)
+![Historial]
 
 **Lo que ves:**
 - Filtros de fecha
