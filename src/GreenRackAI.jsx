@@ -494,84 +494,606 @@ function RackDetail({ rack, onBack, onSendCommand }) {
 
 // ---------- Predictivo view ----------
 function Predictivo({ racks, selectedRack, onSelect }) {
-  const forecast = useMemo(() => {
-    const pts = [];
-    let t = selectedRack.temp;
-    for (let i = 0; i <= 15; i += 1) {
-      const trend = selectedRack.status === "critico" ? 0.15 : selectedRack.status === "advertencia" ? 0.06 : 0.01;
-      t = t + trend + (Math.random() - 0.5) * 0.15;
-      pts.push({ min: `+${i}m`, temp: Number(t.toFixed(1)) });
+
+  const [prediction, setPrediction] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+
+    async function getPrediction() {
+
+      setLoading(true);
+      setError("");
+
+      try {
+
+        const response = await fetch(
+          `http://localhost:4000/api/ai/predict/${selectedRack.num}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              temperature: selectedRack.temp,
+              humidity: 48,
+              cpu_load: 78,
+              airflow: selectedRack.pwm,
+              power_kw: 245,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Error HTTP ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        setPrediction(data);
+
+      } catch (err) {
+
+        console.error(
+          "Error obteniendo predicción:",
+          err
+        );
+
+        setError(
+          "No fue posible obtener la predicción del servicio de IA."
+        );
+
+      } finally {
+
+        setLoading(false);
+
+      }
     }
-    return pts;
-  }, [selectedRack.num, selectedRack.temp]);
 
-  const risk = Math.min(100, Math.max(4, Math.round((forecast[forecast.length - 1].temp - 22) * 14)));
-  const riskColor = risk > 65 ? C.red : risk > 35 ? C.amber : C.green;
+    getPrediction();
 
-  const ranked = [...racks].sort((a, b) => b.temp - a.temp).slice(0, 6);
+  }, [
+    selectedRack.num,
+    selectedRack.temp,
+    selectedRack.pwm
+  ]);
+
+
+  const risk = prediction
+    ? prediction.risk_percentage
+    : 0;
+
+  const riskColor =
+    risk >= 70
+      ? C.red
+      : risk >= 40
+        ? C.amber
+        : C.green;
+
+
+  const forecast = prediction
+    ? [
+        {
+          min: "Actual",
+          temp: Number(
+            selectedRack.temp.toFixed(1)
+          ),
+        },
+        {
+          min: "+15m",
+          temp: prediction.prediction_temperature_c,
+        },
+      ]
+    : [
+        {
+          min: "Actual",
+          temp: selectedRack.temp,
+        },
+      ];
+
+
+  const ranked = [...racks]
+    .sort((a, b) => b.temp - a.temp)
+    .slice(0, 6);
+
 
   return (
-    <div>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Predicción de Hotspots — LSTM + XGBoost</div>
-      <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 14 }}>Estimación de temperatura a 15 minutos, capa de cognición</div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }} className="grk-pred-grid">
-        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>Pronóstico — {selectedRack.label}</span>
+    <div>
+
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          marginBottom: 2,
+        }}
+      >
+        Predicción de Hotspots — LSTM + XGBoost
+      </div>
+
+      <div
+        style={{
+          fontSize: 11,
+          color: C.textSecondary,
+          marginBottom: 14,
+        }}
+      >
+        Predicción mediante modelos de IA a 15 minutos
+      </div>
+
+
+      {error && (
+
+        <div
+          style={{
+            background: C.red + "18",
+            border: `1px solid ${C.red}55`,
+            color: C.red,
+            borderRadius: 10,
+            padding: 10,
+            marginBottom: 12,
+            fontSize: 12,
+          }}
+        >
+          {error}
+        </div>
+
+      )}
+
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr",
+          gap: 12,
+        }}
+        className="grk-pred-grid"
+      >
+
+
+        {/* ------------------------------------------------ */}
+        {/* GRÁFICA */}
+        {/* ------------------------------------------------ */}
+
+        <div
+          style={{
+            background: C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+          >
+
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+              }}
+            >
+              Pronóstico — {selectedRack.label}
+            </span>
+
+
             <select
               value={selectedRack.num}
-              onChange={(e) => onSelect(Number(e.target.value))}
-              style={{ background: C.panelAlt, color: C.textPrimary, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, padding: "4px 8px" }}
+              onChange={(e) =>
+                onSelect(
+                  Number(e.target.value)
+                )
+              }
+              style={{
+                background: C.panelAlt,
+                color: C.textPrimary,
+                border: `1px solid ${C.border}`,
+                borderRadius: 8,
+                fontSize: 12,
+                padding: "4px 8px",
+              }}
             >
+
               {racks.map((r) => (
-                <option key={r.id} value={r.num}>{r.label}</option>
+
+                <option
+                  key={r.id}
+                  value={r.num}
+                >
+                  {r.label}
+                </option>
+
               ))}
+
             </select>
+
           </div>
-          <div style={{ height: 200 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={forecast}>
-                <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="min" tick={{ fill: C.textSecondary, fontSize: 11 }} />
-                <YAxis tick={{ fill: C.textSecondary, fontSize: 11 }} domain={["dataMin - 1", "dataMax + 1"]} />
-                <ReferenceLine y={27} stroke={C.red} strokeDasharray="4 4" label={{ value: "Umbral crítico", fill: C.red, fontSize: 10, position: "insideTopRight" }} />
-                <Tooltip contentStyle={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="temp" stroke={C.green} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+
+
+          {loading ? (
+
+            <div
+              style={{
+                height: 200,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: C.textSecondary,
+                fontSize: 12,
+              }}
+            >
+              Ejecutando modelos XGBoost + LSTM...
+            </div>
+
+          ) : (
+
+            <div style={{ height: 200 }}>
+
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+
+                <LineChart
+                  data={forecast}
+                >
+
+                  <CartesianGrid
+                    stroke={C.border}
+                    strokeDasharray="3 3"
+                    vertical={false}
+                  />
+
+                  <XAxis
+                    dataKey="min"
+                    tick={{
+                      fill: C.textSecondary,
+                      fontSize: 11,
+                    }}
+                  />
+
+                  <YAxis
+                    tick={{
+                      fill: C.textSecondary,
+                      fontSize: 11,
+                    }}
+                    domain={[
+                      "dataMin - 1",
+                      "dataMax + 1",
+                    ]}
+                  />
+
+                  <ReferenceLine
+                    y={27}
+                    stroke={C.red}
+                    strokeDasharray="4 4"
+                    label={{
+                      value: "Umbral crítico",
+                      fill: C.red,
+                      fontSize: 10,
+                      position: "insideTopRight",
+                    }}
+                  />
+
+                  <Tooltip
+                    contentStyle={{
+                      background: C.panelAlt,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+
+                  <Line
+                    type="monotone"
+                    dataKey="temp"
+                    stroke={C.green}
+                    strokeWidth={2}
+                    dot
+                  />
+
+                </LineChart>
+
+              </ResponsiveContainer>
+
+            </div>
+
+          )}
+
         </div>
 
-        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* ------------------------------------------------ */}
+        {/* INFORMACIÓN DE IA */}
+        {/* ------------------------------------------------ */}
+
+        <div
+          style={{
+            background: C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+          }}
+        >
+
           <div>
-            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 6 }}>Riesgo de hotspot (15 min)</div>
-            <div style={{ fontSize: 30, fontWeight: 700, color: riskColor }}>{risk}%</div>
-            <div style={{ height: 6, background: C.panelAlt, borderRadius: 999, marginTop: 8, overflow: "hidden" }}>
-              <div style={{ width: `${risk}%`, height: "100%", background: riskColor }} />
+
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textSecondary,
+                marginBottom: 6,
+              }}
+            >
+              Riesgo térmico (15 min)
             </div>
+
+            <div
+              style={{
+                fontSize: 30,
+                fontWeight: 700,
+                color: riskColor,
+              }}
+            >
+              {loading
+                ? "..."
+                : `${risk}%`}
+            </div>
+
+            <div
+              style={{
+                height: 6,
+                background: C.panelAlt,
+                borderRadius: 999,
+                marginTop: 8,
+                overflow: "hidden",
+              }}
+            >
+
+              <div
+                style={{
+                  width: `${risk}%`,
+                  height: "100%",
+                  background: riskColor,
+                }}
+              />
+
+            </div>
+
           </div>
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 8 }}>Racks priorizados</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {ranked.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => onSelect(r.num)}
+
+
+          {/* ------------------------------------------------ */}
+          {/* PREDICCIONES */}
+          {/* ------------------------------------------------ */}
+
+          {prediction && (
+
+            <div
+              style={{
+                borderTop: `1px solid ${C.border}`,
+                paddingTop: 12,
+              }}
+            >
+
+              <div
+                style={{
+                  fontSize: 11,
+                  color: C.textSecondary,
+                  marginBottom: 8,
+                }}
+              >
+                Resultado de modelos
+              </div>
+
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 7,
+                  fontSize: 12,
+                }}
+              >
+
+                <div
                   style={{
-                    display: "flex", justifyContent: "space-between", background: r.num === selectedRack.num ? C.panelAlt : "transparent",
-                    border: "none", borderRadius: 6, padding: "5px 8px", cursor: "pointer", fontSize: 12,
+                    display: "flex",
+                    justifyContent: "space-between",
                   }}
                 >
-                  <span style={{ color: C.textPrimary }}>{r.label}</span>
-                  <span style={{ color: statusColor(r.status), fontWeight: 700 }}>{r.temp.toFixed(1)}°</span>
-                </button>
-              ))}
+                  <span>
+                    XGBoost
+                  </span>
+
+                  <strong>
+                    {prediction.xgboost_prediction_c}°C
+                  </strong>
+                </div>
+
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span>
+                    LSTM
+                  </span>
+
+                  <strong>
+                    {prediction.lstm_prediction_c}°C
+                  </strong>
+                </div>
+
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    color: C.green,
+                  }}
+                >
+                  <span>
+                    Ensamble
+                  </span>
+
+                  <strong>
+                    {prediction.prediction_temperature_c}°C
+                  </strong>
+                </div>
+
+              </div>
+
             </div>
+
+          )}
+
+
+          {/* ------------------------------------------------ */}
+          {/* RECOMENDACIÓN */}
+          {/* ------------------------------------------------ */}
+
+          {prediction && (
+
+            <div
+              style={{
+                borderTop: `1px solid ${C.border}`,
+                paddingTop: 12,
+              }}
+            >
+
+              <div
+                style={{
+                  fontSize: 11,
+                  color: C.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                Recomendación de IA
+              </div>
+
+              <div
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: C.textPrimary,
+                }}
+              >
+                {prediction.recommendation}
+              </div>
+
+            </div>
+
+          )}
+
+
+          {/* ------------------------------------------------ */}
+          {/* RACKS PRIORIZADOS */}
+          {/* ------------------------------------------------ */}
+
+          <div
+            style={{
+              borderTop: `1px solid ${C.border}`,
+              paddingTop: 12,
+            }}
+          >
+
+            <div
+              style={{
+                fontSize: 11,
+                color: C.textSecondary,
+                marginBottom: 8,
+              }}
+            >
+              Racks priorizados
+            </div>
+
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+
+              {ranked.map((r) => (
+
+                <button
+                  key={r.id}
+                  onClick={() =>
+                    onSelect(r.num)
+                  }
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    background:
+                      r.num === selectedRack.num
+                        ? C.panelAlt
+                        : "transparent",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "5px 8px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+
+                  <span
+                    style={{
+                      color: C.textPrimary,
+                    }}
+                  >
+                    {r.label}
+                  </span>
+
+                  <span
+                    style={{
+                      color:
+                        statusColor(
+                          r.status
+                        ),
+                      fontWeight: 700,
+                    }}
+                  >
+                    {r.temp.toFixed(1)}°
+                  </span>
+
+                </button>
+
+              ))}
+
+            </div>
+
           </div>
+
         </div>
+
       </div>
-      <style>{`@media (max-width: 899px) { .grk-pred-grid { grid-template-columns: 1fr !important; } }`}</style>
+
+
+      <style>{`
+        @media (max-width: 899px) {
+          .grk-pred-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
     </div>
   );
 }
