@@ -16,6 +16,588 @@
 9. [Referencias](#9-referencias)
 
 ---
+# 🌱 GreenRack AI — Guía de ejecución
+
+Esta guía permite ejecutar la versión actual de GreenRack AI con:
+
+* React/Vite
+* Node.js + Express
+* Servicio de IA con Python/FastAPI
+* Nodo IoT con Python
+* MQTT mediante Mosquitto
+
+La arquitectura actual es:
+
+```text
+Nodo IoT
+   ↓
+MQTT
+   ↓
+Mosquitto
+   ↓
+Express
+   ↓
+Servicio IA
+   ↓
+Web / App móvil
+```
+
+---
+
+# 🪟 WINDOWS
+
+## 1. Instalar Git
+
+Descargar e instalar Git para Windows desde:
+
+https://git-scm.com/download/win
+
+Después comprobar:
+
+```powershell
+git --version
+```
+
+---
+
+## 2. Instalar Node.js
+
+Instalar una versión LTS de Node.js desde:
+
+https://nodejs.org/
+
+Comprobar:
+
+```powershell
+node --version
+npm --version
+```
+
+---
+
+## 3. Instalar Python
+
+Instalar Python 3.12 desde:
+
+https://www.python.org/downloads/
+
+Durante la instalación es importante activar:
+
+```text
+Add Python to PATH
+```
+
+Comprobar:
+
+```powershell
+python --version
+```
+
+Debe ser Python 3.12.x.
+
+---
+
+# 4. Clonar GreenRack AI
+
+Abrir PowerShell:
+
+```powershell
+git clone https://github.com/MarvinGL-2003/GreenRack-AI.git
+cd GreenRack-AI
+```
+
+---
+
+# 5. Instalar dependencias de Node
+
+Ejecutar:
+
+```powershell
+npm install --legacy-peer-deps
+```
+
+---
+
+# 6. Crear configuración `.env`
+
+Ejecutar:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+No es necesario modificarlo para una prueba local.
+
+---
+
+# 7. Instalar Mosquitto
+
+Descargar el instalador oficial de Mosquitto para Windows desde:
+
+https://mosquitto.org/download/
+
+Instalarlo.
+
+Después abrir PowerShell como administrador y comprobar que Mosquitto está instalado:
+
+```powershell
+mosquitto -h
+```
+
+Si el comando no es reconocido, utilizar la ruta de instalación de Mosquitto, normalmente:
+
+```text
+C:\Program Files\mosquitto\
+```
+
+---
+
+# 8. Iniciar Mosquitto
+
+Abrir PowerShell como administrador:
+
+```powershell
+mosquitto -c "C:\Program Files\mosquitto\mosquitto.conf" -v
+```
+
+Dejar esta terminal abierta.
+
+---
+
+# 9. Preparar el nodo IoT
+
+Abrir otra terminal PowerShell:
+
+```powershell
+cd GreenRack-AI\iot-node
+```
+
+Crear el entorno virtual:
+
+```powershell
+python -m venv venv
+```
+
+Activarlo:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Si PowerShell bloquea la ejecución de scripts, ejecutar:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+y volver a ejecutar:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Instalar las dependencias:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+---
+
+# 10. Ejecutar el nodo IoT
+
+Con el entorno virtual activado:
+
+```powershell
+python sensor.py
+```
+
+Debe aparecer:
+
+```text
+GREENRACK AI - NODO IoT
+Estado: ONLINE
+
+MQTT: CONECTADO
+Broker: 127.0.0.1:1883
+Topic: greenrack/telemetry
+```
+
+El nodo enviará datos de los racks:
+
+```text
+1
+6
+12
+18
+```
+
+---
+
+# 11. Ejecutar Express
+
+Abrir otra terminal:
+
+```powershell
+cd GreenRack-AI
+node server.js
+```
+
+Debe aparecer:
+
+```text
+Backend corriendo en puerto 4000
+Servicio de IA configurado en: http://localhost:8000
+MQTT conectado correctamente
+Suscrito al topic: greenrack/telemetry
+```
+
+Después deben aparecer mensajes:
+
+```text
+TELEMETRÍA IoT RECIBIDA
+```
+
+Esto confirma:
+
+```text
+sensor.py
+   ↓
+Mosquitto
+   ↓
+Express
+```
+
+---
+
+# 12. Ejecutar el servicio de IA
+
+Abrir otra terminal:
+
+```powershell
+cd GreenRack-AI\system\ai-service
+```
+
+Crear el entorno:
+
+```powershell
+python -m venv venv
+```
+
+Activarlo:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Instalar dependencias:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+Ejecutar:
+
+```powershell
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+# 13. Ejecutar el frontend web
+
+Abrir otra terminal:
+
+```powershell
+cd GreenRack-AI
+npm run dev
+```
+
+Vite mostrará una dirección parecida a:
+
+```text
+http://localhost:5173/
+```
+
+Abrir esa dirección en el navegador.
+
+---
+
+# 🐧 LINUX / FEDORA
+
+## 1. Instalar Git, Node.js y Python
+
+En Fedora:
+
+```bash
+sudo dnf install git nodejs python3.12
+```
+
+Comprobar:
+
+```bash
+git --version
+node --version
+npm --version
+python3 --version
+```
+
+---
+
+# 2. Clonar el proyecto
+
+```bash
+git clone https://github.com/MarvinGL-2003/GreenRack-AI.git
+cd GreenRack-AI
+```
+
+---
+
+# 3. Instalar dependencias de Node
+
+```bash
+npm install --legacy-peer-deps
+```
+
+---
+
+# 4. Crear `.env`
+
+```bash
+cp .env.example .env
+```
+
+---
+
+# 5. Instalar Mosquitto
+
+En Fedora:
+
+```bash
+sudo dnf install mosquitto
+```
+
+Activarlo:
+
+```bash
+sudo systemctl enable --now mosquitto
+```
+
+Comprobar:
+
+```bash
+systemctl is-active mosquitto
+```
+
+Debe mostrar:
+
+```text
+active
+```
+
+---
+
+# 6. Preparar el nodo IoT
+
+```bash
+cd iot-node
+python3.12 -m venv venv
+source venv/bin/activate
+```
+
+Instalar:
+
+```bash
+pip install -r requirements.txt
+```
+
+Ejecutar:
+
+```bash
+python sensor.py
+```
+
+---
+
+# 7. Ejecutar Express
+
+En otra terminal:
+
+```bash
+cd GreenRack-AI
+node server.js
+```
+
+Debe mostrar:
+
+```text
+MQTT conectado correctamente
+Suscrito al topic: greenrack/telemetry
+```
+
+---
+
+# 8. Ejecutar el servicio de IA
+
+Otra terminal:
+
+```bash
+cd GreenRack-AI/system/ai-service
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+# 9. Ejecutar el frontend
+
+Otra terminal:
+
+```bash
+cd GreenRack-AI
+npm run dev
+```
+
+Abrir la dirección que muestre Vite.
+
+---
+
+# 📱 IMPORTANTE PARA LA APP MÓVIL
+
+Si van a ejecutar la aplicación Expo desde un teléfono físico, `localhost` NO representa la computadora.
+
+Deben utilizar la IP local de la computadora que está ejecutando Express.
+
+Por ejemplo:
+
+```text
+http://192.168.0.13:4000
+```
+
+Pero cada integrante debe utilizar la IP de SU propia computadora.
+
+Para conocerla:
+
+### Windows
+
+```powershell
+ipconfig
+```
+
+Buscar:
+
+```text
+IPv4 Address
+```
+
+### Linux
+
+```bash
+ip addr
+```
+
+Buscar la dirección IPv4 de la conexión de red.
+
+El teléfono y la computadora deben estar conectados a la misma red Wi-Fi/LAN.
+
+---
+
+# 🧪 ORDEN DE EJECUCIÓN
+
+Para probar todo el sistema, seguir este orden:
+
+### Terminal 1 — MQTT
+
+Windows:
+
+```powershell
+mosquitto -c "C:\Program Files\mosquitto\mosquitto.conf" -v
+```
+
+Linux:
+
+```bash
+systemctl is-active mosquitto
+```
+
+### Terminal 2 — Nodo IoT
+
+```text
+iot-node
+↓
+python sensor.py
+```
+
+### Terminal 3 — Backend
+
+```text
+node server.js
+```
+
+### Terminal 4 — IA
+
+```text
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+### Terminal 5 — Web
+
+```text
+npm run dev
+```
+
+---
+
+# ✅ ¿Cómo saber si funciona?
+
+En `server.js` debe aparecer repetidamente:
+
+```text
+TELEMETRÍA IoT RECIBIDA
+```
+
+junto con información como:
+
+```text
+rack: 1
+temperature: 25
+humidity: ...
+cpu_load: ...
+airflow: ...
+power_kw: ...
+```
+
+Si aparece eso, la comunicación IoT está funcionando correctamente.
+
+---
+
+# ⚠️ IMPORTANTE
+
+NO subir a GitHub:
+
+```text
+.env
+node_modules/
+venv/
+```
+
+Estos archivos y carpetas ya están configurados en `.gitignore`.
+
+Sí deben estar en GitHub:
+
+```text
+.env.example
+iot-node/sensor.py
+iot-node/requirements.txt
+package.json
+package-lock.json
+server.js
+```
+
+Si algún comando genera un error, enviar el error completo al equipo antes de cambiar versiones o eliminar archivos.
+
 
 ## 1. El Problema
 
