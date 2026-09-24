@@ -1,146 +1,145 @@
-
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
-import axios from "axios";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  Brain,
+  CheckCircle2,
+  Cpu,
+  Gauge,
+  Server,
+  Thermometer,
+  Wifi,
+  WifiOff,
+  Zap,
+} from "lucide-react-native";
 
-// IMPORTANTE:
-// Cambia esta IP por la IP de tu computadora Fedora.
-// Puedes verla con: hostname -I
-const API_URL = "http://192.168.0.13:4000";
+import { getHealth, getMetrics, AIHealth, AIMetrics } from "../services/api";
 
-type Rack = {
-  id: number;
-  pasillo: string;
-  fila: number;
-  temperature: number;
-  humidity: number;
-  cpu_load: number;
-  airflow: number;
-  power_kw: number;
-  status: "normal" | "warning" | "critical";
+const COLORS = {
+  background: "#0A0F1C",
+  card: "#111827",
+  cardLight: "#172033",
+  border: "#243047",
+  primary: "#22C55E",
+  blue: "#3B82F6",
+  cyan: "#06B6D4",
+  yellow: "#F59E0B",
+  red: "#EF4444",
+  text: "#F8FAFC",
+  muted: "#94A3B8",
 };
 
-type Health = {
-  status: string;
-  models?: {
-    xgboost: boolean;
-    lstm: boolean;
-  };
-};
-
-type Metrics = {
-  status: string;
-  metrics?: {
-    xgboost: {
-      mae_c: number;
-      rmse_c: number;
-    };
-    lstm: {
-      mae_c: number;
-      rmse_c: number;
-    };
-    prediction_horizon_minutes: number;
-  };
-};
-
-const initialRacks: Rack[] = [
-  {
-    id: 1,
-    pasillo: "A",
-    fila: 1,
-    temperature: 24.2,
-    humidity: 48,
-    cpu_load: 52,
-    airflow: 75,
-    power_kw: 180,
-    status: "normal",
-  },
-  {
-    id: 6,
-    pasillo: "A",
-    fila: 6,
-    temperature: 25.8,
-    humidity: 48,
-    cpu_load: 65,
-    airflow: 55,
-    power_kw: 210,
-    status: "warning",
-  },
-  {
-    id: 12,
-    pasillo: "B",
-    fila: 6,
-    temperature: 27.9,
-    humidity: 48,
-    cpu_load: 78,
-    airflow: 55,
-    power_kw: 245,
-    status: "critical",
-  },
-  {
-    id: 18,
-    pasillo: "C",
-    fila: 6,
-    temperature: 26.3,
-    humidity: 48,
-    cpu_load: 70,
-    airflow: 62,
-    power_kw: 225,
-    status: "warning",
-  },
+const racks = [
+  { id: 1, temperature: 23.8, cpu: 42, airflow: 72, power: 211 },
+  { id: 2, temperature: 24.2, cpu: 48, airflow: 70, power: 218 },
+  { id: 3, temperature: 23.5, cpu: 39, airflow: 74, power: 205 },
+  { id: 4, temperature: 24.7, cpu: 53, airflow: 68, power: 225 },
+  { id: 5, temperature: 25.1, cpu: 58, airflow: 63, power: 231 },
+  { id: 6, temperature: 25.8, cpu: 61, airflow: 55, power: 239 },
+  { id: 7, temperature: 23.9, cpu: 45, airflow: 71, power: 214 },
+  { id: 8, temperature: 24.4, cpu: 50, airflow: 69, power: 221 },
+  { id: 9, temperature: 24.0, cpu: 43, airflow: 73, power: 209 },
+  { id: 10, temperature: 24.8, cpu: 55, airflow: 66, power: 228 },
+  { id: 11, temperature: 25.2, cpu: 59, airflow: 62, power: 235 },
+  { id: 12, temperature: 27.9, cpu: 78, airflow: 55, power: 245 },
+  { id: 13, temperature: 23.7, cpu: 41, airflow: 75, power: 207 },
+  { id: 14, temperature: 24.1, cpu: 46, airflow: 71, power: 216 },
+  { id: 15, temperature: 24.6, cpu: 51, airflow: 68, power: 224 },
+  { id: 16, temperature: 24.9, cpu: 56, airflow: 65, power: 230 },
+  { id: 17, temperature: 25.0, cpu: 57, airflow: 64, power: 233 },
+  { id: 18, temperature: 26.3, cpu: 67, airflow: 58, power: 241 },
+  { id: 19, temperature: 23.6, cpu: 40, airflow: 74, power: 206 },
+  { id: 20, temperature: 24.3, cpu: 47, airflow: 70, power: 219 },
+  { id: 21, temperature: 24.5, cpu: 49, airflow: 69, power: 220 },
+  { id: 22, temperature: 24.9, cpu: 54, airflow: 66, power: 229 },
+  { id: 23, temperature: 25.3, cpu: 60, airflow: 62, power: 237 },
+  { id: 24, temperature: 24.0, cpu: 44, airflow: 72, power: 212 },
 ];
 
-function getStatusColor(status: Rack["status"]) {
-  switch (status) {
-    case "critical":
-      return "#EF4444";
-    case "warning":
-      return "#F59E0B";
-    default:
-      return "#22C55E";
+function getStatus(temperature: number) {
+  if (temperature >= 27) {
+    return {
+      label: "Crítico",
+      color: COLORS.red,
+    };
   }
+
+  if (temperature >= 25.5) {
+    return {
+      label: "Advertencia",
+      color: COLORS.yellow,
+    };
+  }
+
+  return {
+    label: "Normal",
+    color: COLORS.primary,
+  };
 }
 
-function getStatusText(status: Rack["status"]) {
-  switch (status) {
-    case "critical":
-      return "CRÍTICO";
-    case "warning":
-      return "ADVERTENCIA";
-    default:
-      return "NORMAL";
-  }
+function MetricCard({
+  icon,
+  title,
+  value,
+  subtitle,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  subtitle: string;
+}) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={styles.metricIcon}>{icon}</View>
+
+      <Text style={styles.metricTitle}>{title}</Text>
+
+      <Text style={styles.metricValue}>{value}</Text>
+
+      <Text style={styles.metricSubtitle}>{subtitle}</Text>
+    </View>
+  );
 }
 
-export default function HomeScreen() {
-  const [racks, setRacks] = useState<Rack[]>(initialRacks);
-  const [health, setHealth] = useState<Health | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function Dashboard() {
+  const [health, setHealth] = useState<AIHealth | null>(null);
+  const [metrics, setMetrics] = useState<AIMetrics | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
+  const criticalRacks = racks.filter(
+    (rack) => rack.temperature >= 27
+  );
+
+  const warningRacks = racks.filter(
+    (rack) => rack.temperature >= 25.5 && rack.temperature < 27
+  );
+
+  const averageTemperature =
+    racks.reduce((sum, rack) => sum + rack.temperature, 0) /
+    racks.length;
+
+  const loadData = useCallback(async () => {
     try {
-      const [healthResponse, metricsResponse] = await Promise.all([
-        axios.get(`${API_URL}/api/ai/health`, {
-          timeout: 5000,
-        }),
-        axios.get(`${API_URL}/api/ai/metrics`, {
-          timeout: 5000,
-        }),
+      const [healthData, metricsData] = await Promise.all([
+        getHealth(),
+        getMetrics(),
       ]);
 
-      setHealth(healthResponse.data);
-      setMetrics(metricsResponse.data);
+      setHealth(healthData);
+      setMetrics(metricsData);
     } catch (error) {
       console.log("Error conectando con GreenRack:", error);
       setHealth(null);
@@ -149,671 +148,692 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
 
-    const interval = setInterval(() => {
-      loadData();
-    }, 15000);
+    const interval = setInterval(loadData, 15000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
   };
 
-  const criticalRacks = racks.filter(
-    (rack) => rack.status === "critical"
-  ).length;
-
-  const warningRacks = racks.filter(
-    (rack) => rack.status === "warning"
-  ).length;
-
-  const averageTemperature =
-    racks.reduce((sum, rack) => sum + rack.temperature, 0) /
-    racks.length;
-
-  const totalPower = racks.reduce(
-    (sum, rack) => sum + rack.power_kw,
-    0
-  );
+  const connected = health?.status === "ok";
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#22C55E"
+            tintColor={COLORS.primary}
           />
         }
       >
         {/* HEADER */}
+
         <View style={styles.header}>
           <View>
-            <Text style={styles.brand}>GREENRACK</Text>
-            <Text style={styles.title}>AI Mobile</Text>
+            <View style={styles.brandRow}>
+              <View style={styles.logo}>
+                <Activity size={22} color={COLORS.primary} />
+              </View>
+
+              <Text style={styles.brand}>GreenRack</Text>
+            </View>
+
+            <Text style={styles.title}>Centro de control</Text>
+
+            <Text style={styles.subtitle}>
+              Monitoreo inteligente del data center
+            </Text>
           </View>
 
           <View
             style={[
-              styles.connectionBadge,
+              styles.connection,
               {
-                borderColor: health
-                  ? "#22C55E"
-                  : "#EF4444",
+                borderColor: connected
+                  ? "rgba(34,197,94,0.35)"
+                  : "rgba(239,68,68,0.35)",
               },
             ]}
           >
-            <View
+            {connected ? (
+              <Wifi size={17} color={COLORS.primary} />
+            ) : (
+              <WifiOff size={17} color={COLORS.red} />
+            )}
+
+            <Text
               style={[
-                styles.connectionDot,
+                styles.connectionText,
                 {
-                  backgroundColor: health
-                    ? "#22C55E"
-                    : "#EF4444",
+                  color: connected
+                    ? COLORS.primary
+                    : COLORS.red,
                 },
               ]}
-            />
-            <Text style={styles.connectionText}>
-              {health ? "ONLINE" : "OFFLINE"}
+            >
+              {connected ? "ONLINE" : "OFFLINE"}
             </Text>
           </View>
         </View>
 
-        {/* RESUMEN */}
-        <Text style={styles.sectionTitle}>Resumen del sistema</Text>
+        {/* SYSTEM STATUS */}
 
-        <View style={styles.grid}>
-          <MetricCard
-            title="Temperatura"
-            value={`${averageTemperature.toFixed(1)}°C`}
-            subtitle="Promedio"
-          />
+        <View style={styles.systemCard}>
+          <View style={styles.systemLeft}>
+            <View style={styles.onlineDot} />
 
-          <MetricCard
-            title="Consumo"
-            value={`${totalPower.toFixed(0)} kW`}
-            subtitle="Total estimado"
-          />
+            <View>
+              <Text style={styles.systemTitle}>
+                Sistema operativo
+              </Text>
 
-          <MetricCard
-            title="Críticos"
-            value={criticalRacks.toString()}
-            subtitle="Racks"
-            danger
-          />
+              <Text style={styles.systemSubtitle}>
+                Backend + Servicio IA
+              </Text>
+            </View>
+          </View>
 
-          <MetricCard
-            title="Advertencias"
-            value={warningRacks.toString()}
-            subtitle="Racks"
-            warning
+          <CheckCircle2
+            size={26}
+            color={connected ? COLORS.primary : COLORS.red}
           />
         </View>
 
-        {/* IA */}
-        <Text style={styles.sectionTitle}>Servicio de IA</Text>
+        {/* METRICS */}
+
+        <Text style={styles.sectionTitle}>Resumen del sistema</Text>
+
+        <View style={styles.metricsGrid}>
+          <MetricCard
+            icon={
+              <Thermometer
+                size={20}
+                color={COLORS.cyan}
+              />
+            }
+            title="Temperatura"
+            value={`${averageTemperature.toFixed(1)}°C`}
+            subtitle="Promedio de racks"
+          />
+
+          <MetricCard
+            icon={
+              <Server
+                size={20}
+                color={COLORS.blue}
+              />
+            }
+            title="Racks"
+            value="24"
+            subtitle="Monitoreados"
+          />
+
+          <MetricCard
+            icon={
+              <AlertTriangle
+                size={20}
+                color={COLORS.red}
+              />
+            }
+            title="Críticos"
+            value={String(criticalRacks.length)}
+            subtitle="Requieren atención"
+          />
+
+          <MetricCard
+            icon={
+              <Gauge
+                size={20}
+                color={COLORS.yellow}
+              />
+            }
+            title="Advertencias"
+            value={String(warningRacks.length)}
+            subtitle="Bajo observación"
+          />
+        </View>
+
+        {/* AI */}
+
+        <Text style={styles.sectionTitle}>
+          Inteligencia artificial
+        </Text>
 
         <View style={styles.aiCard}>
           <View style={styles.aiHeader}>
-            <View>
+            <View style={styles.aiIcon}>
+              <Brain size={24} color={COLORS.primary} />
+            </View>
+
+            <View style={{ flex: 1 }}>
               <Text style={styles.aiTitle}>
                 GreenRack Predictive AI
               </Text>
+
               <Text style={styles.aiSubtitle}>
-                Predicción térmica a{" "}
-                {metrics?.metrics?.prediction_horizon_minutes ?? 15} minutos
+                Predicción térmica a 15 minutos
               </Text>
             </View>
 
             {loading ? (
-              <ActivityIndicator color="#22C55E" />
+              <ActivityIndicator
+                size="small"
+                color={COLORS.primary}
+              />
             ) : (
               <View
                 style={[
-                  styles.aiStatus,
+                  styles.aiBadge,
                   {
-                    backgroundColor: health
-                      ? "#163D2A"
-                      : "#3D1616",
+                    backgroundColor: connected
+                      ? "rgba(34,197,94,0.12)"
+                      : "rgba(239,68,68,0.12)",
                   },
                 ]}
               >
                 <Text
                   style={{
-                    color: health ? "#22C55E" : "#EF4444",
+                    color: connected
+                      ? COLORS.primary
+                      : COLORS.red,
+                    fontSize: 11,
                     fontWeight: "700",
                   }}
                 >
-                  {health ? "ACTIVA" : "ERROR"}
+                  {connected ? "ACTIVA" : "SIN CONEXIÓN"}
                 </Text>
               </View>
             )}
           </View>
 
           <View style={styles.modelRow}>
-            <ModelStatus
-              name="XGBoost"
-              active={health?.models?.xgboost ?? false}
-            />
+            <View style={styles.model}>
+              <Cpu size={17} color={COLORS.blue} />
+              <Text style={styles.modelName}>XGBoost</Text>
 
-            <ModelStatus
-              name="LSTM"
-              active={health?.models?.lstm ?? false}
-            />
+              <Text style={styles.modelValue}>
+                {metrics
+                  ? `MAE ${metrics.metrics.xgboost.mae_c.toFixed(
+                      3
+                    )}°C`
+                  : "--"}
+              </Text>
+            </View>
+
+            <View style={styles.model}>
+              <Brain size={17} color={COLORS.primary} />
+              <Text style={styles.modelName}>LSTM</Text>
+
+              <Text style={styles.modelValue}>
+                {metrics
+                  ? `MAE ${metrics.metrics.lstm.mae_c.toFixed(
+                      3
+                    )}°C`
+                  : "--"}
+              </Text>
+            </View>
           </View>
 
-          {metrics?.metrics && (
-            <View style={styles.metricsRow}>
-              <View>
-                <Text style={styles.smallLabel}>
-                  MAE XGBoost
+          <TouchableOpacity
+            style={styles.aiButton}
+            onPress={() => router.push("/predictive")}
+          >
+            <Text style={styles.aiButtonText}>
+              Abrir centro predictivo
+            </Text>
+
+            <ArrowRight size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ALERTS */}
+
+        <Text style={styles.sectionTitle}>
+          Atención requerida
+        </Text>
+
+        {criticalRacks.map((rack) => {
+          const status = getStatus(rack.temperature);
+
+          return (
+         <TouchableOpacity
+  key={rack.id}
+  style={styles.alertCard}
+  onPress={() =>
+    router.push({
+      pathname: "/rack/id",
+      params: { id: String(rack.id) },
+    })
+  }
+>
+              <View
+                style={[
+                  styles.alertIcon,
+                  {
+                    backgroundColor:
+                      "rgba(239,68,68,0.12)",
+                  },
+                ]}
+              >
+                <AlertTriangle
+                  size={20}
+                  color={status.color}
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.alertTitle}>
+                  Rack {rack.id} · {status.label}
                 </Text>
-                <Text style={styles.metricValue}>
-                  {metrics.metrics.xgboost.mae_c.toFixed(3)}°C
+
+                <Text style={styles.alertSubtitle}>
+                  Temperatura {rack.temperature.toFixed(1)}°C
+                  · CPU {rack.cpu}%
                 </Text>
               </View>
 
-              <View>
-                <Text style={styles.smallLabel}>
-                  MAE LSTM
-                </Text>
-                <Text style={styles.metricValue}>
-                  {metrics.metrics.lstm.mae_c.toFixed(3)}°C
-                </Text>
-              </View>
+              <ArrowRight
+                size={18}
+                color={COLORS.muted}
+              />
+            </TouchableOpacity>
+          );
+        })}
+
+        {warningRacks.slice(0, 2).map((rack) => (
+        <TouchableOpacity
+  key={rack.id}
+  style={styles.alertCard}
+  onPress={() =>
+    router.push({
+      pathname: "/rack/id",
+      params: { id: String(rack.id) },
+    })
+  }
+>
+            <View
+              style={[
+                styles.alertIcon,
+                {
+                  backgroundColor:
+                    "rgba(245,158,11,0.12)",
+                },
+              ]}
+            >
+              <AlertTriangle
+                size={20}
+                color={COLORS.yellow}
+              />
             </View>
-          )}
+
+            <View style={{ flex: 1 }}>
+              <Text style={styles.alertTitle}>
+                Rack {rack.id} · Advertencia
+              </Text>
+
+              <Text style={styles.alertSubtitle}>
+                Temperatura {rack.temperature.toFixed(1)}°C
+              </Text>
+            </View>
+
+            <ArrowRight
+              size={18}
+              color={COLORS.muted}
+            />
+          </TouchableOpacity>
+        ))}
+
+        {/* QUICK ACTIONS */}
+
+        <Text style={styles.sectionTitle}>
+          Acciones rápidas
+        </Text>
+
+        <View style={styles.actionsGrid}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push("/racks")}
+          >
+            <Server size={22} color={COLORS.blue} />
+            <Text style={styles.actionText}>Ver racks</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push("/predictive")}
+          >
+            <Brain size={22} color={COLORS.primary} />
+            <Text style={styles.actionText}>Predicción</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push("/alerts")}
+          >
+            <AlertTriangle
+              size={22}
+              color={COLORS.yellow}
+            />
+            <Text style={styles.actionText}>Alertas</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+          >
+            <Zap size={22} color={COLORS.cyan} />
+            <Text style={styles.actionText}>Energía</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* RACKS */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            Racks con atención
-          </Text>
-
-          <Text style={styles.rackCount}>
-            {racks.length} monitoreados
-          </Text>
-        </View>
-
-        {racks
-          .filter((rack) => rack.status !== "normal")
-          .map((rack) => (
-            <RackCard key={rack.id} rack={rack} />
-          ))}
-
-        {/* FOOTER */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            GreenRack AI
-          </Text>
-
-          <Text style={styles.footerSubtext}>
-            Monitoreo inteligente de infraestructura
-          </Text>
-        </View>
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function MetricCard({
-  title,
-  value,
-  subtitle,
-  danger,
-  warning,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  danger?: boolean;
-  warning?: boolean;
-}) {
-  let valueColor = "#F8FAFC";
-
-  if (danger) valueColor = "#EF4444";
-  if (warning) valueColor = "#F59E0B";
-
-  return (
-    <View style={styles.metricCard}>
-      <Text style={styles.cardTitle}>{title}</Text>
-
-      <Text
-        style={[
-          styles.bigValue,
-          {
-            color: valueColor,
-          },
-        ]}
-      >
-        {value}
-      </Text>
-
-      <Text style={styles.cardSubtitle}>
-        {subtitle}
-      </Text>
-    </View>
-  );
-}
-
-function ModelStatus({
-  name,
-  active,
-}: {
-  name: string;
-  active: boolean;
-}) {
-  return (
-    <View style={styles.modelItem}>
-      <View
-        style={[
-          styles.modelDot,
-          {
-            backgroundColor: active
-              ? "#22C55E"
-              : "#EF4444",
-          },
-        ]}
-      />
-
-      <Text style={styles.modelText}>
-        {name}
-      </Text>
-
-      <Text
-        style={[
-          styles.modelState,
-          {
-            color: active
-              ? "#22C55E"
-              : "#EF4444",
-          },
-        ]}
-      >
-        {active ? "OK" : "ERROR"}
-      </Text>
-    </View>
-  );
-}
-
-function RackCard({ rack }: { rack: Rack }) {
-  const statusColor = getStatusColor(rack.status);
-
-  return (
-    <View
-      style={[
-        styles.rackCard,
-        {
-          borderLeftColor: statusColor,
-        },
-      ]}
-    >
-      <View style={styles.rackHeader}>
-        <View>
-          <Text style={styles.rackName}>
-            Rack {rack.id}
-          </Text>
-
-          <Text style={styles.rackLocation}>
-            Pasillo {rack.pasillo} · Fila {rack.fila}
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor: `${statusColor}22`,
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusText,
-              {
-                color: statusColor,
-              },
-            ]}
-          >
-            {getStatusText(rack.status)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.rackMetrics}>
-        <RackMetric
-          label="TEMP"
-          value={`${rack.temperature.toFixed(1)}°C`}
-        />
-
-        <RackMetric
-          label="CPU"
-          value={`${rack.cpu_load}%`}
-        />
-
-        <RackMetric
-          label="AIRFLOW"
-          value={`${rack.airflow}%`}
-        />
-
-        <RackMetric
-          label="POWER"
-          value={`${rack.power_kw} kW`}
-        />
-      </View>
-    </View>
-  );
-}
-
-function RackMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <View style={styles.rackMetric}>
-      <Text style={styles.rackMetricLabel}>
-        {label}
-      </Text>
-
-      <Text style={styles.rackMetricValue}>
-        {value}
-      </Text>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0A0F1C",
+    backgroundColor: COLORS.background,
   },
 
   container: {
     flex: 1,
-    backgroundColor: "#0A0F1C",
-  },
-
-  content: {
-    padding: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 18,
   },
 
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingTop: 12,
+    paddingBottom: 20,
+  },
+
+  brandRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 30,
+    gap: 9,
+  },
+
+  logo: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(34,197,94,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   brand: {
-    color: "#22C55E",
-    fontSize: 14,
+    color: COLORS.text,
+    fontSize: 20,
     fontWeight: "800",
-    letterSpacing: 2,
   },
 
   title: {
-    color: "#F8FAFC",
-    fontSize: 28,
+    color: COLORS.text,
+    fontSize: 26,
     fontWeight: "800",
-    marginTop: 3,
+    marginTop: 18,
   },
 
-  connectionBadge: {
+  subtitle: {
+    color: COLORS.muted,
+    fontSize: 13,
+    marginTop: 5,
+  },
+
+  connection: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 5,
     borderWidth: 1,
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    backgroundColor: "#131B2E",
-  },
-
-  connectionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
   },
 
   connectionText: {
-    color: "#F8FAFC",
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "800",
   },
 
-  sectionTitle: {
-    color: "#F8FAFC",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 14,
-  },
-
-  sectionHeader: {
+  systemCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    padding: 15,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 28,
-    marginBottom: 14,
   },
 
-  rackCount: {
-    color: "#64748B",
+  systemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  onlineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.primary,
+  },
+
+  systemTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  systemSubtitle: {
+    color: COLORS.muted,
     fontSize: 12,
+    marginTop: 3,
   },
 
-  grid: {
+  sectionTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: "800",
+    marginTop: 25,
+    marginBottom: 12,
+  },
+
+  metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginBottom: 26,
+    gap: 10,
   },
 
   metricCard: {
     width: "48%",
-    backgroundColor: "#131B2E",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: COLORS.card,
+    borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: COLORS.border,
+    padding: 14,
   },
 
-  cardTitle: {
-    color: "#94A3B8",
-    fontSize: 12,
-    fontWeight: "600",
+  metricIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: COLORS.cardLight,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
   },
 
-  bigValue: {
-    fontSize: 25,
-    fontWeight: "800",
-    marginTop: 8,
-  },
-
-  cardSubtitle: {
-    color: "#64748B",
+  metricTitle: {
+    color: COLORS.muted,
     fontSize: 11,
-    marginTop: 4,
+  },
+
+  metricValue: {
+    color: COLORS.text,
+    fontSize: 23,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+
+  metricSubtitle: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 3,
   },
 
   aiCard: {
-    backgroundColor: "#131B2E",
-    borderRadius: 16,
-    padding: 18,
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#1E293B",
+    borderColor: COLORS.border,
+    padding: 16,
   },
 
   aiHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  aiIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: "rgba(34,197,94,0.12)",
+    justifyContent: "center",
     alignItems: "center",
   },
 
   aiTitle: {
-    color: "#F8FAFC",
-    fontSize: 16,
-    fontWeight: "700",
+    color: COLORS.text,
+    fontSize: 15,
+    fontWeight: "800",
   },
 
   aiSubtitle: {
-    color: "#64748B",
-    fontSize: 12,
-    marginTop: 4,
+    color: COLORS.muted,
+    fontSize: 11,
+    marginTop: 3,
   },
 
-  aiStatus: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+  aiBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
 
   modelRow: {
-    marginTop: 20,
+    flexDirection: "row",
     gap: 10,
+    marginTop: 16,
   },
 
-  modelItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0A0F1C",
-    borderRadius: 10,
-    padding: 11,
-  },
-
-  modelDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 10,
-  },
-
-  modelText: {
-    color: "#E2E8F0",
-    fontSize: 13,
-    fontWeight: "600",
+  model: {
     flex: 1,
+    backgroundColor: COLORS.cardLight,
+    borderRadius: 12,
+    padding: 12,
   },
 
-  modelState: {
-    fontSize: 11,
-    fontWeight: "800",
-  },
-
-  metricsRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 18,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#1E293B",
-  },
-
-  smallLabel: {
-    color: "#64748B",
-    fontSize: 10,
-  },
-
-  metricValue: {
-    color: "#F8FAFC",
-    fontSize: 15,
+  modelName: {
+    color: COLORS.text,
     fontWeight: "700",
-    marginTop: 3,
-  },
-
-  rackCard: {
-    backgroundColor: "#131B2E",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-  },
-
-  rackHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  rackName: {
-    color: "#F8FAFC",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  rackLocation: {
-    color: "#64748B",
-    fontSize: 11,
-    marginTop: 3,
-  },
-
-  statusBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-  },
-
-  statusText: {
-    fontSize: 9,
-    fontWeight: "800",
-  },
-
-  rackMetrics: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 18,
-  },
-
-  rackMetric: {
-    alignItems: "center",
-  },
-
-  rackMetricLabel: {
-    color: "#64748B",
-    fontSize: 8,
-    fontWeight: "700",
-  },
-
-  rackMetricValue: {
-    color: "#E2E8F0",
     fontSize: 12,
-    fontWeight: "700",
+    marginTop: 6,
+  },
+
+  modelValue: {
+    color: COLORS.muted,
+    fontSize: 10,
     marginTop: 4,
   },
 
-  footer: {
+  aiButton: {
+    marginTop: 13,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 13,
+    flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 35,
+    gap: 7,
   },
 
-  footerText: {
-    color: "#22C55E",
+  aiButtonText: {
+    color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "800",
-    letterSpacing: 1,
   },
 
-  footerSubtext: {
-    color: "#475569",
-    fontSize: 10,
-    marginTop: 5,
+  alertCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 13,
+    marginBottom: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  alertIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  alertTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  alertSubtitle: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+
+  actionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+
+  actionButton: {
+    width: "48%",
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    padding: 17,
+    alignItems: "center",
+    gap: 8,
+  },
+
+  actionText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
-
