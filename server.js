@@ -3,6 +3,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const axios = require('axios');
 require('dotenv').config();
+const mqtt = require('mqtt');
 
 const app = express();
 
@@ -22,6 +23,59 @@ const pool = new Pool({
 const AI_SERVICE_URL =
   process.env.AI_SERVICE_URL || 'http://localhost:8000';
 
+  // ============================================================
+// CONFIGURACIÓN MQTT / IoT
+// ============================================================
+
+const MQTT_BROKER =
+  process.env.MQTT_BROKER || 'mqtt://127.0.0.1:1883';
+
+const MQTT_TOPIC =
+  process.env.MQTT_TOPIC || 'greenrack/telemetry';
+
+const mqttClient = mqtt.connect(MQTT_BROKER);
+
+mqttClient.on('connect', () => {
+  console.log('MQTT conectado correctamente');
+  console.log(`Broker MQTT: ${MQTT_BROKER}`);
+
+  mqttClient.subscribe(MQTT_TOPIC, (err) => {
+    if (err) {
+      console.error(
+        'Error suscribiéndose al topic MQTT:',
+        err.message
+      );
+      return;
+    }
+
+    console.log(`Suscrito al topic: ${MQTT_TOPIC}`);
+  });
+});
+
+mqttClient.on('error', (error) => {
+  console.error(
+    'Error en conexión MQTT:',
+    error.message
+  );
+});
+
+mqttClient.on('message', async (topic, message) => {
+  try {
+    const telemetry = JSON.parse(message.toString());
+
+    console.log('----------------------------------------');
+    console.log('TELEMETRÍA IoT RECIBIDA');
+    console.log(`Topic: ${topic}`);
+    console.log(telemetry);
+    console.log('----------------------------------------');
+
+  } catch (error) {
+    console.error(
+      'Error procesando telemetría MQTT:',
+      error.message
+    );
+  }
+});
 
 // ============================================================
 // RUTA PRINCIPAL
