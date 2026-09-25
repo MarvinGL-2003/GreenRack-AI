@@ -1,13 +1,48 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
+
 import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
+
 import {
-  Zap, Battery, Bell, ShieldCheck, Home, Server, TrendingUp, History,
-  ChevronLeft, Thermometer, Send, Activity, Calendar, AlertTriangle, CheckCircle2,
+  Zap,
+  Battery,
+  Bell,
+  ShieldCheck,
+  Home,
+  Server,
+  TrendingUp,
+  History,
+  ChevronLeft,
+  Thermometer,
+  Send,
+  Activity,
+  Calendar,
+  AlertTriangle,
+  CheckCircle2,
+  Settings,
+  Power,
+  Cpu,
+  Wifi,
+  Radio,
 } from "lucide-react";
 
-// ---------- Design tokens (from GreenRack AI mockup) ----------
+// ---------- Design tokens ----------
+
 const C = {
   bg: "#0A0F1C",
   panel: "#131B2E",
@@ -24,17 +59,35 @@ const C = {
 const PASILLOS = ["A", "B", "C", "D"];
 const FILAS = [1, 2, 3, 4, 5, 6];
 
+
+// ---------- Datos iniciales ----------
+
 function buildInitialRacks() {
   const racks = [];
   let num = 0;
+
   FILAS.forEach((fila) => {
     PASILLOS.forEach((pasillo) => {
       num += 1;
+
       let temp = 22 + Math.random() * 2.2;
       let status = "normal";
-      if (num === 6) { temp = 25.8; status = "advertencia"; }
-      if (num === 12) { temp = 27.9; status = "critico"; }
-      if (num === 18) { temp = 26.3; status = "advertencia"; }
+
+      if (num === 6) {
+        temp = 25.8;
+        status = "advertencia";
+      }
+
+      if (num === 12) {
+        temp = 27.9;
+        status = "critico";
+      }
+
+      if (num === 18) {
+        temp = 26.3;
+        status = "advertencia";
+      }
+
       racks.push({
         id: `${pasillo}${fila}`,
         num,
@@ -43,487 +96,2287 @@ function buildInitialRacks() {
         fila,
         temp: Number(temp.toFixed(1)),
         status,
-        pwm: status === "critico" ? 78 : status === "advertencia" ? 55 : 40,
+        pwm:
+          status === "critico"
+            ? 78
+            : status === "advertencia"
+              ? 55
+              : 40,
       });
     });
   });
+
   return racks;
 }
+
 
 function statusColor(status) {
   if (status === "critico") return C.red;
   if (status === "advertencia") return C.amber;
   return C.green;
 }
+
+
 function statusLabel(status) {
   if (status === "critico") return "Crítico";
   if (status === "advertencia") return "Advertencia";
   return "Normal";
 }
 
+
 function buildInitialEnergyHistory() {
   const pts = [];
   const now = new Date();
+
   for (let i = 23; i >= 0; i--) {
-    const t = new Date(now.getTime() - i * 15 * 60000);
+    const t = new Date(
+      now.getTime() - i * 15 * 60000
+    );
+
     const wave = Math.sin((23 - i) / 3.5) * 12;
-    const kw = 232 + wave + (Math.random() * 4 - 2);
+
+    const kw =
+      232 +
+      wave +
+      (Math.random() * 4 - 2);
+
     pts.push({
-      time: t.toLocaleTimeString("es-SV", { hour: "2-digit", minute: "2-digit" }),
+      time: t.toLocaleTimeString("es-SV", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
       kw: Number(kw.toFixed(1)),
     });
   }
+
   return pts;
 }
 
+
 function buildInitialLog() {
   const now = Date.now();
+
   return [
-    { id: 1, ts: now - 1000 * 60 * 3, rack: 12, level: "critico", msg: "Hotspot inminente detectado — nivel medio" },
-    { id: 2, ts: now - 1000 * 60 * 18, rack: 6, level: "advertencia", msg: "Temperatura elevada — nivel superior" },
-    { id: 3, ts: now - 1000 * 60 * 32, rack: 18, level: "advertencia", msg: "Flujo de aire reducido detectado" },
-    { id: 4, ts: now - 1000 * 60 * 60 * 2, rack: 12, level: "info", msg: "Comando PWM 60% enviado a actuador" },
-    { id: 5, ts: now - 1000 * 60 * 60 * 5, rack: 9, level: "normal", msg: "Rack normalizado tras acción correctiva" },
-    { id: 6, ts: now - 1000 * 60 * 60 * 26, rack: 3, level: "advertencia", msg: "Pico de consumo energético registrado" },
-    { id: 7, ts: now - 1000 * 60 * 60 * 70, rack: 21, level: "critico", msg: "Apagado preventivo evitado por acción de IA" },
+    {
+      id: 1,
+      ts: now - 1000 * 60 * 3,
+      rack: 12,
+      level: "critico",
+      msg: "Hotspot inminente detectado — nivel medio",
+    },
+    {
+      id: 2,
+      ts: now - 1000 * 60 * 18,
+      rack: 6,
+      level: "advertencia",
+      msg: "Temperatura elevada — nivel superior",
+    },
+    {
+      id: 3,
+      ts: now - 1000 * 60 * 32,
+      rack: 18,
+      level: "advertencia",
+      msg: "Flujo de aire reducido detectado",
+    },
+    {
+      id: 4,
+      ts: now - 1000 * 60 * 60 * 2,
+      rack: 12,
+      level: "info",
+      msg: "Comando PWM 60% enviado a actuador",
+    },
+    {
+      id: 5,
+      ts: now - 1000 * 60 * 60 * 5,
+      rack: 9,
+      level: "normal",
+      msg: "Rack normalizado tras acción correctiva",
+    },
+    {
+      id: 6,
+      ts: now - 1000 * 60 * 60 * 26,
+      rack: 3,
+      level: "advertencia",
+      msg: "Pico de consumo energético registrado",
+    },
+    {
+      id: 7,
+      ts: now - 1000 * 60 * 60 * 70,
+      rack: 21,
+      level: "critico",
+      msg: "Apagado preventivo evitado por acción de IA",
+    },
   ];
 }
 
+
 // ---------- Small UI pieces ----------
+
 function Pill({ status }) {
   const color = statusColor(status);
+
   return (
     <span
       style={{
-        display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700,
-        letterSpacing: 0.4, padding: "3px 9px", borderRadius: 999, color,
-        background: color + "22", border: `1px solid ${color}55`, textTransform: "uppercase",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: 0.4,
+        padding: "3px 9px",
+        borderRadius: 999,
+        color,
+        background: color + "22",
+        border: `1px solid ${color}55`,
+        textTransform: "uppercase",
       }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: color }} />
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 999,
+          background: color,
+        }}
+      />
+
       {statusLabel(status)}
     </span>
   );
 }
 
-function KpiCard({ icon: Icon, label, value, sub, pillStatus, accent }) {
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  pillStatus,
+  accent,
+}) {
   return (
     <div
       style={{
-        background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14,
-        padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10, minWidth: 0,
+        background: C.panel,
+        border: `1px solid ${C.border}`,
+        borderRadius: 14,
+        padding: "16px 18px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        minWidth: 0,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, color: C.textSecondary, textTransform: "uppercase" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            color: C.textSecondary,
+            textTransform: "uppercase",
+          }}
+        >
           {label}
         </span>
+
         <Icon size={18} color={accent} />
       </div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: C.textPrimary, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 12, color: C.textSecondary }}>{sub}</div>
+
+      <div
+        style={{
+          fontSize: 28,
+          fontWeight: 700,
+          color: C.textPrimary,
+          lineHeight: 1,
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          fontSize: 12,
+          color: C.textSecondary,
+        }}
+      >
+        {sub}
+      </div>
+
       <Pill status={pillStatus} />
     </div>
   );
 }
 
+
 function RackCell({ rack, onClick }) {
   const color = statusColor(rack.status);
   const critical = rack.status === "critico";
+
   return (
     <button
       onClick={() => onClick(rack)}
       style={{
-        background: critical ? color + "1E" : C.panelAlt,
-        border: `1.5px solid ${critical ? color : C.border}`,
-        borderRadius: 10, padding: "10px 8px", cursor: "pointer", textAlign: "center",
-        transition: "transform 120ms ease, border-color 200ms ease",
+        background: critical
+          ? color + "1E"
+          : C.panelAlt,
+        border: `1.5px solid ${
+          critical ? color : C.border
+        }`,
+        borderRadius: 10,
+        padding: "10px 8px",
+        cursor: "pointer",
+        textAlign: "center",
+        transition:
+          "transform 120ms ease, border-color 200ms ease",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-2px)")}
-      onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.transform =
+          "translateY(-2px)")
+      }
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.transform =
+          "translateY(0)")
+      }
     >
-      <div style={{ fontSize: 10, color: C.textSecondary, marginBottom: 4 }}>{rack.label}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color }}>{rack.temp.toFixed(1)}°</div>
+      <div
+        style={{
+          fontSize: 10,
+          color: C.textSecondary,
+          marginBottom: 4,
+        }}
+      >
+        {rack.label}
+      </div>
+
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: 700,
+          color,
+        }}
+      >
+        {rack.temp.toFixed(1)}°
+      </div>
     </button>
   );
 }
 
-function NavItem({ icon: Icon, label, active, onClick }) {
+
+function NavItem({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}) {
   return (
     <button
       onClick={onClick}
       style={{
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-        background: "transparent", border: "none", cursor: "pointer",
-        color: active ? C.green : C.textSecondary, padding: "6px 10px", flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 4,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        color: active
+          ? C.green
+          : C.textSecondary,
+        padding: "6px 10px",
+        flex: 1,
       }}
     >
       <Icon size={18} />
-      <span style={{ fontSize: 10, fontWeight: 600 }}>{label}</span>
+
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </span>
     </button>
   );
 }
 
-function TopTab({ n, label, active, onClick }) {
+
+function TopTab({
+  n,
+  label,
+  active,
+  onClick,
+}) {
   return (
     <button
       onClick={onClick}
       style={{
-        background: active ? C.panelAlt : "transparent",
-        border: `1px solid ${active ? C.green + "55" : "transparent"}`,
-        color: active ? C.green : C.textSecondary, borderRadius: 8, padding: "6px 14px",
-        fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", gap: 6, alignItems: "center",
+        background: active
+          ? C.panelAlt
+          : "transparent",
+        border: `1px solid ${
+          active
+            ? C.green + "55"
+            : "transparent"
+        }`,
+        color: active
+          ? C.green
+          : C.textSecondary,
+        borderRadius: 8,
+        padding: "6px 14px",
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: "pointer",
+        display: "flex",
+        gap: 6,
+        alignItems: "center",
       }}
     >
-      <span style={{ opacity: 0.6 }}>{n}</span>{label}
+      <span style={{ opacity: 0.6 }}>
+        {n}
+      </span>
+
+      {label}
     </button>
   );
 }
 
-// ---------- Main App ----------
+
+// ============================================================
+// MAIN APP
+// ============================================================
+
 export default function GreenRackAI() {
-  const [racks, setRacks] = useState(buildInitialRacks);
-  const [energyHistory, setEnergyHistory] = useState(buildInitialEnergyHistory);
-  const [log, setLog] = useState(buildInitialLog);
-  const [view, setView] = useState("dashboard");
-  const [selectedRackNum, setSelectedRackNum] = useState(12);
-  const [now, setNow] = useState(new Date());
-  const [historyFilter, setHistoryFilter] = useState("24h");
+  const [racks, setRacks] = useState(
+    buildInitialRacks
+  );
+
+  const [energyHistory, setEnergyHistory] =
+    useState(buildInitialEnergyHistory);
+
+  const [log, setLog] = useState(
+    buildInitialLog
+  );
+
+  const [view, setView] =
+    useState("dashboard");
+
+  const [selectedRackNum, setSelectedRackNum] =
+    useState(12);
+
+  const [now, setNow] =
+    useState(new Date());
+
+  const [historyFilter, setHistoryFilter] =
+    useState("24h");
+
+  // ---------- Centro de Control ----------
+
+  const [systemStatus, setSystemStatus] =
+    useState({
+      mqtt: false,
+      backend: false,
+      ai: false,
+      iot: false,
+    });
+
+  const [controlLoading, setControlLoading] =
+    useState(false);
+
+  const [controlMessage, setControlMessage] =
+    useState("");
+
   const logIdRef = useRef(100);
 
-  const selectedRack = racks.find((r) => r.num === selectedRackNum) || racks[0];
+  const selectedRack =
+    racks.find(
+      (r) => r.num === selectedRackNum
+    ) || racks[0];
 
-  // clock
+
+  // ---------- Clock ----------
+
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
+    const t = setInterval(
+      () => setNow(new Date()),
+      1000
+    );
+
     return () => clearInterval(t);
   }, []);
 
-  // live simulation
+
+  // ---------- Estado del sistema ----------
+
+  useEffect(() => {
+    async function loadSystemStatus() {
+      try {
+        const response = await fetch(
+          "http://localhost:5000/api/system/status",
+          {
+            cache: "no-store",
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "No se pudo consultar el Centro de Control"
+          );
+        }
+
+        const data =
+          await response.json();
+
+        if (data.success) {
+          setSystemStatus(
+            data.services
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Error consultando estado del sistema:",
+          error
+        );
+      }
+    }
+
+    loadSystemStatus();
+
+    const interval = setInterval(
+      loadSystemStatus,
+      3000
+    );
+
+    return () =>
+      clearInterval(interval);
+  }, []);
+
+
+  // ---------- Live simulation ----------
+
   useEffect(() => {
     const t = setInterval(() => {
       setRacks((prev) =>
         prev.map((r) => {
-          const drift = (Math.random() - 0.5) * 0.4;
-          const cooling = (r.pwm - 50) * 0.006;
-          let temp = r.temp + drift - cooling;
-          temp = Math.max(20, Math.min(30, temp));
+          const drift =
+            (Math.random() - 0.5) * 0.4;
+
+          const cooling =
+            (r.pwm - 50) * 0.006;
+
+          let temp =
+            r.temp +
+            drift -
+            cooling;
+
+          temp = Math.max(
+            20,
+            Math.min(30, temp)
+          );
+
           let status = "normal";
-          if (temp >= 27) status = "critico";
-          else if (temp >= 25.2) status = "advertencia";
-          return { ...r, temp: Number(temp.toFixed(1)), status };
+
+          if (temp >= 27)
+            status = "critico";
+          else if (temp >= 25.2)
+            status = "advertencia";
+
+          return {
+            ...r,
+            temp: Number(
+              temp.toFixed(1)
+            ),
+            status,
+          };
         })
       );
+
       setEnergyHistory((prev) => {
-        const last = prev[prev.length - 1];
-        const wave = Math.sin(Date.now() / 90000) * 10;
-        const kw = Math.max(200, 232 + wave + (Math.random() * 5 - 2.5));
-        const next = [
+        const wave =
+          Math.sin(
+            Date.now() / 90000
+          ) * 10;
+
+        const kw = Math.max(
+          200,
+          232 +
+            wave +
+            (Math.random() * 5 - 2.5)
+        );
+
+        return [
           ...prev.slice(1),
-          { time: new Date().toLocaleTimeString("es-SV", { hour: "2-digit", minute: "2-digit" }), kw: Number(kw.toFixed(1)) },
+          {
+            time:
+              new Date().toLocaleTimeString(
+                "es-SV",
+                {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }
+              ),
+            kw: Number(
+              kw.toFixed(1)
+            ),
+          },
         ];
-        return next;
       });
     }, 3500);
-    return () => clearInterval(t);
+
+    return () =>
+      clearInterval(t);
   }, []);
 
+
+  // ---------- Calculated values ----------
+
   const alerts = useMemo(
-    () => racks.filter((r) => r.status !== "normal").sort((a, b) => b.temp - a.temp),
+    () =>
+      racks
+        .filter(
+          (r) =>
+            r.status !== "normal"
+        )
+        .sort(
+          (a, b) =>
+            b.temp - a.temp
+        ),
     [racks]
   );
-  const normalCount = racks.filter((r) => r.status === "normal").length;
-  const advertenciaCount = racks.filter((r) => r.status === "advertencia").length;
-  const avgTemp = racks.reduce((s, r) => s + r.temp, 0) / racks.length;
-  const totalKw = energyHistory[energyHistory.length - 1]?.kw ?? 245.6;
-  const pue = (1.02 + (totalKw - 220) / 900).toFixed(2);
+
+  const normalCount =
+    racks.filter(
+      (r) =>
+        r.status === "normal"
+    ).length;
+
+  const advertenciaCount =
+    racks.filter(
+      (r) =>
+        r.status ===
+        "advertencia"
+    ).length;
+
+  const avgTemp =
+    racks.reduce(
+      (s, r) => s + r.temp,
+      0
+    ) / racks.length;
+
+  const totalKw =
+    energyHistory[
+      energyHistory.length - 1
+    ]?.kw ?? 245.6;
+
+  const pue = (
+    1.02 +
+    (totalKw - 220) / 900
+  ).toFixed(2);
+
   const hotspotsMitigados = 127;
+
+
+  // ============================================================
+  // CENTRO DE CONTROL
+  // ============================================================
+
+  async function getSystemStatus() {
+    const response =
+      await fetch(
+        "http://localhost:5000/api/system/status",
+        {
+          cache: "no-store",
+        }
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        "No se pudo consultar el estado del sistema."
+      );
+    }
+
+    const data =
+      await response.json();
+
+    if (!data.success) {
+      throw new Error(
+        "El Centro de Control no devolvió un estado válido."
+      );
+    }
+
+    setSystemStatus(
+      data.services
+    );
+
+    return data.services;
+  }
+
+
+  async function waitForServiceState(
+    service,
+    expectedState,
+    attempts = 8
+  ) {
+    for (
+      let i = 0;
+      i < attempts;
+      i++
+    ) {
+      try {
+        const status =
+          await getSystemStatus();
+
+        if (
+          Boolean(
+            status[service]
+          ) ===
+          expectedState
+        ) {
+          return true;
+        }
+      } catch (error) {
+        console.error(
+          "Error verificando estado:",
+          error
+        );
+      }
+
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            700
+          )
+      );
+    }
+
+    return false;
+  }
+
+
+  async function controlService(
+    endpoint,
+    message
+  ) {
+    setControlLoading(true);
+    setControlMessage("");
+
+    try {
+      const response =
+        await fetch(
+          `http://localhost:5000${endpoint}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            cache: "no-store",
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          "Error en el Centro de Control"
+        );
+      }
+
+      const data =
+        await response.json();
+
+      setControlMessage(
+        data.message ||
+          message
+      );
+
+      let service = null;
+      let expectedState = null;
+
+      if (
+        endpoint.includes(
+          "/backend/start"
+        )
+      ) {
+        service = "backend";
+        expectedState = true;
+      }
+
+      if (
+        endpoint.includes(
+          "/backend/stop"
+        )
+      ) {
+        service = "backend";
+        expectedState = false;
+      }
+
+      if (
+        endpoint.includes(
+          "/ai/start"
+        )
+      ) {
+        service = "ai";
+        expectedState = true;
+      }
+
+      if (
+        endpoint.includes(
+          "/ai/stop"
+        )
+      ) {
+        service = "ai";
+        expectedState = false;
+      }
+
+      if (
+        endpoint.includes(
+          "/iot/start"
+        )
+      ) {
+        service = "iot";
+        expectedState = true;
+      }
+
+      if (
+        endpoint.includes(
+          "/iot/stop"
+        )
+      ) {
+        service = "iot";
+        expectedState = false;
+      }
+
+      if (
+        endpoint.includes(
+          "/start-all"
+        )
+      ) {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              800
+            )
+        );
+
+        await getSystemStatus();
+
+        return;
+      }
+
+      if (
+        endpoint.includes(
+          "/stop-all"
+        )
+      ) {
+        await new Promise(
+          (resolve) =>
+            setTimeout(
+              resolve,
+              800
+            )
+        );
+
+        await getSystemStatus();
+
+        return;
+      }
+
+      if (
+        service &&
+        expectedState !== null
+      ) {
+        const reachedState =
+          await waitForServiceState(
+            service,
+            expectedState
+          );
+
+        if (!reachedState) {
+          await getSystemStatus();
+
+          setControlMessage(
+            expectedState
+              ? `${message} Verifica el estado del servicio.`
+              : `${message} Verifica el estado del servicio.`
+          );
+        }
+      } else {
+        await getSystemStatus();
+      }
+    } catch (error) {
+      console.error(
+        "Error controlando servicio:",
+        error
+      );
+
+      setControlMessage(
+        "No fue posible ejecutar la acción."
+      );
+    } finally {
+      setControlLoading(false);
+
+      setTimeout(() => {
+        setControlMessage("");
+      }, 4000);
+    }
+  }
+
+
+  async function startAllServices() {
+    await controlService(
+      "/api/system/start-all",
+      "Servicios iniciados."
+    );
+  }
+
+
+  async function stopAllServices() {
+    await controlService(
+      "/api/system/stop-all",
+      "Servicios detenidos."
+    );
+  }
+
+
+  // ============================================================
+  // LOG
+  // ============================================================
 
   function pushLog(entry) {
     logIdRef.current += 1;
-    setLog((prev) => [{ id: logIdRef.current, ts: Date.now(), ...entry }, ...prev]);
+
+    setLog((prev) => [
+      {
+        id:
+          logIdRef.current,
+        ts: Date.now(),
+        ...entry,
+      },
+      ...prev,
+    ]);
   }
 
-  function sendCommand(rackNum, pwm) {
-    setRacks((prev) => prev.map((r) => (r.num === rackNum ? { ...r, pwm } : r)));
-    pushLog({ rack: rackNum, level: "info", msg: `Comando PWM ${pwm}% enviado a actuador del rack #${String(rackNum).padStart(2, "0")}` });
+
+  function sendCommand(
+    rackNum,
+    pwm
+  ) {
+    setRacks((prev) =>
+      prev.map((r) =>
+        r.num === rackNum
+          ? {
+              ...r,
+              pwm,
+            }
+          : r
+      )
+    );
+
+    pushLog({
+      rack: rackNum,
+      level: "info",
+      msg: `Comando PWM ${pwm}% enviado a actuador del rack #${String(
+        rackNum
+      ).padStart(2, "0")}`,
+    });
   }
+
 
   function openRack(rack) {
-    setSelectedRackNum(rack.num);
+    setSelectedRackNum(
+      rack.num
+    );
+
     setView("rack");
   }
 
-  const dateStr = now.toLocaleDateString("es-SV", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
-  const timeStr = now.toLocaleTimeString("es-SV", { hour12: false });
+
+  const dateStr =
+    now.toLocaleDateString(
+      "es-SV",
+      {
+        weekday:
+          "long",
+        day: "2-digit",
+        month:
+          "long",
+        year:
+          "numeric",
+      }
+    );
+
+  const timeStr =
+    now.toLocaleTimeString(
+      "es-SV",
+      {
+        hour12: false,
+      }
+    );
+
 
   return (
-    <div style={{ background: C.bg, minHeight: 600, borderRadius: 16, padding: "18px 18px 90px", fontFamily: "Inter, system-ui, sans-serif", color: C.textPrimary }}>
+    <div
+      style={{
+        background: C.bg,
+        minHeight: 600,
+        borderRadius: 16,
+        padding:
+          "18px 18px 90px",
+        fontFamily:
+          "Inter, system-ui, sans-serif",
+        color:
+          C.textPrimary,
+      }}
+    >
+
       {/* Header */}
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: C.green, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, color: "#04342C" }}>
+
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent:
+            "space-between",
+          alignItems:
+            "flex-start",
+          gap: 10,
+          marginBottom: 18,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems:
+              "center",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 9,
+              background:
+                C.green,
+              display: "flex",
+              alignItems:
+                "center",
+              justifyContent:
+                "center",
+              fontWeight: 700,
+              fontSize: 13,
+              color:
+                "#04342C",
+            }}
+          >
             GR
           </div>
+
           <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>GreenRack AI</div>
-            <div style={{ fontSize: 11, color: C.textSecondary }}>Dashboard — Centro de Datos</div>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: 15,
+              }}
+            >
+              GreenRack AI
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                color:
+                  C.textSecondary,
+              }}
+            >
+              Dashboard — Centro de Datos
+            </div>
           </div>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.green, fontVariantNumeric: "tabular-nums" }}>{timeStr}</div>
-          <div style={{ fontSize: 11, color: C.textSecondary, textTransform: "capitalize" }}>{dateStr}</div>
+
+        <div
+          style={{
+            textAlign: "right",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color:
+                C.green,
+              fontVariantNumeric:
+                "tabular-nums",
+            }}
+          >
+            {timeStr}
+          </div>
+
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+              textTransform:
+                "capitalize",
+            }}
+          >
+            {dateStr}
+          </div>
         </div>
       </div>
 
+
       {/* Desktop tabs */}
-      <div className="grk-desktop-tabs" style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-        <TopTab n={1} label="Dashboard" active={view === "dashboard"} onClick={() => setView("dashboard")} />
-        <TopTab n={2} label={selectedRack.label} active={view === "rack"} onClick={() => setView("rack")} />
-        <TopTab n={3} label="Predictivo" active={view === "predictivo"} onClick={() => setView("predictivo")} />
-        <TopTab n={4} label="Historial" active={view === "historial"} onClick={() => setView("historial")} />
+
+      <div
+        className="grk-desktop-tabs"
+        style={{
+          display: "flex",
+          gap: 8,
+          marginBottom: 18,
+          flexWrap: "wrap",
+        }}
+      >
+        <TopTab
+          n={1}
+          label="Dashboard"
+          active={
+            view ===
+            "dashboard"
+          }
+          onClick={() =>
+            setView(
+              "dashboard"
+            )
+          }
+        />
+
+        <TopTab
+          n={2}
+          label={
+            selectedRack.label
+          }
+          active={
+            view === "rack"
+          }
+          onClick={() =>
+            setView("rack")
+          }
+        />
+
+        <TopTab
+          n={3}
+          label="Predictivo"
+          active={
+            view ===
+            "predictivo"
+          }
+          onClick={() =>
+            setView(
+              "predictivo"
+            )
+          }
+        />
+
+        <TopTab
+          n={4}
+          label="Historial"
+          active={
+            view ===
+            "historial"
+          }
+          onClick={() =>
+            setView(
+              "historial"
+            )
+          }
+        />
+
+        <TopTab
+          n={5}
+          label="Control"
+          active={
+            view === "control"
+          }
+          onClick={() =>
+            setView("control")
+          }
+        />
       </div>
 
-      {view === "dashboard" && (
+
+      {/* Views */}
+
+      {view ===
+        "dashboard" && (
         <Dashboard
-          racks={racks} alerts={alerts} energyHistory={energyHistory} avgTemp={avgTemp}
-          normalCount={normalCount} advertenciaCount={advertenciaCount} pue={pue} totalKw={totalKw}
-          hotspotsMitigados={hotspotsMitigados} onOpenRack={openRack}
+          racks={racks}
+          alerts={alerts}
+          energyHistory={
+            energyHistory
+          }
+          avgTemp={
+            avgTemp
+          }
+          normalCount={
+            normalCount
+          }
+          advertenciaCount={
+            advertenciaCount
+          }
+          pue={pue}
+          totalKw={
+            totalKw
+          }
+          hotspotsMitigados={
+            hotspotsMitigados
+          }
+          onOpenRack={
+            openRack
+          }
         />
       )}
+
+
       {view === "rack" && (
-        <RackDetail rack={selectedRack} onBack={() => setView("dashboard")} onSendCommand={sendCommand} />
+        <RackDetail
+          rack={
+            selectedRack
+          }
+          onBack={() =>
+            setView(
+              "dashboard"
+            )
+          }
+          onSendCommand={
+            sendCommand
+          }
+        />
       )}
-      {view === "predictivo" && <Predictivo racks={racks} selectedRack={selectedRack} onSelect={setSelectedRackNum} />}
-      {view === "historial" && <Historial log={log} filter={historyFilter} setFilter={setHistoryFilter} />}
+
+
+      {view ===
+        "predictivo" && (
+        <Predictivo
+          racks={racks}
+          selectedRack={
+            selectedRack
+          }
+          onSelect={
+            setSelectedRackNum
+          }
+        />
+      )}
+
+
+      {view ===
+        "historial" && (
+        <Historial
+          log={log}
+          filter={
+            historyFilter
+          }
+          setFilter={
+            setHistoryFilter
+          }
+        />
+      )}
+
+
+      {view === "control" && (
+        <ControlCenter
+          systemStatus={
+            systemStatus
+          }
+          controlLoading={
+            controlLoading
+          }
+          controlMessage={
+            controlMessage
+          }
+          onControl={
+            controlService
+          }
+          onStartAll={
+            startAllServices
+          }
+          onStopAll={
+            stopAllServices
+          }
+        />
+      )}
+
 
       {/* Mobile bottom nav */}
+
       <div
         className="grk-mobile-nav"
         style={{
-          position: "absolute", left: 12, right: 12, bottom: 12, background: C.panel,
-          border: `1px solid ${C.border}`, borderRadius: 14, display: "flex", padding: "6px 4px",
+          position:
+            "absolute",
+          left: 12,
+          right: 12,
+          bottom: 12,
+          background:
+            C.panel,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          display: "flex",
+          padding:
+            "6px 4px",
         }}
       >
-        <NavItem icon={Home} label="Dashboard" active={view === "dashboard"} onClick={() => setView("dashboard")} />
-        <NavItem icon={Server} label={`Rack #${String(selectedRack.num).padStart(2, "0")}`} active={view === "rack"} onClick={() => setView("rack")} />
-        <NavItem icon={TrendingUp} label="Predictivo" active={view === "predictivo"} onClick={() => setView("predictivo")} />
-        <NavItem icon={History} label="Historial" active={view === "historial"} onClick={() => setView("historial")} />
+        <NavItem
+          icon={Home}
+          label="Dashboard"
+          active={
+            view ===
+            "dashboard"
+          }
+          onClick={() =>
+            setView(
+              "dashboard"
+            )
+          }
+        />
+
+        <NavItem
+          icon={Server}
+          label={`Rack #${String(
+            selectedRack.num
+          ).padStart(2, "0")}`}
+          active={
+            view === "rack"
+          }
+          onClick={() =>
+            setView("rack")
+          }
+        />
+
+        <NavItem
+          icon={
+            TrendingUp
+          }
+          label="Predictivo"
+          active={
+            view ===
+            "predictivo"
+          }
+          onClick={() =>
+            setView(
+              "predictivo"
+            )
+          }
+        />
+
+        <NavItem
+          icon={History}
+          label="Historial"
+          active={
+            view ===
+            "historial"
+          }
+          onClick={() =>
+            setView(
+              "historial"
+            )
+          }
+        />
+
+        <NavItem
+          icon={Settings}
+          label="Control"
+          active={
+            view === "control"
+          }
+          onClick={() =>
+            setView("control")
+          }
+        />
       </div>
 
+
       <style>{`
-        @media (min-width: 900px) { .grk-mobile-nav { display: none; } }
-        @media (max-width: 899px) { .grk-desktop-tabs { display: none; } }
+        @media (min-width: 900px) {
+          .grk-mobile-nav {
+            display: none !important;
+          }
+        }
+
+        @media (max-width: 899px) {
+          .grk-desktop-tabs {
+            display: none !important;
+          }
+        }
       `}</style>
+
     </div>
   );
 }
 
-// ---------- Dashboard view ----------
-function Dashboard({ racks, alerts, energyHistory, avgTemp, normalCount, advertenciaCount, pue, totalKw, hotspotsMitigados, onOpenRack }) {
-  const criticoCount = racks.filter((r) => r.status === "critico").length;
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+
+function Dashboard({
+  racks,
+  alerts,
+  energyHistory,
+  avgTemp,
+  normalCount,
+  advertenciaCount,
+  pue,
+  totalKw,
+  hotspotsMitigados,
+  onOpenRack,
+}) {
+  const criticoCount =
+    racks.filter(
+      (r) =>
+        r.status ===
+        "critico"
+    ).length;
+
   return (
-    <div style={{ position: "relative" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 16 }} className="grk-kpi-grid">
-        <KpiCard icon={Zap} label="PUE Promedio" value={pue} sub="Eficiencia energética" pillStatus="normal" accent={C.green} />
-        <KpiCard icon={Battery} label="Consumo Energético Total" value={`${totalKw.toFixed(1)} kW`} sub="Tendencia estable" pillStatus="normal" accent={C.green} />
-        <KpiCard icon={Bell} label="Alertas Activas" value={alerts.length} sub={`${criticoCount} crítica, ${advertenciaCount} advertencias`} pillStatus="critico" accent={C.red} />
-        <KpiCard icon={ShieldCheck} label="Hotspots Mitigados" value={`${hotspotsMitigados} este mes`} sub="↑ 14 esta semana" pillStatus="normal" accent={C.green} />
+    <div
+      style={{
+        position:
+          "relative",
+      }}
+    >
+
+      <div
+        style={{
+          display:
+            "grid",
+          gridTemplateColumns:
+            "repeat(2, 1fr)",
+          gap: 12,
+          marginBottom: 16,
+        }}
+        className="grk-kpi-grid"
+      >
+        <KpiCard
+          icon={Zap}
+          label="PUE Promedio"
+          value={pue}
+          sub="Eficiencia energética"
+          pillStatus="normal"
+          accent={C.green}
+        />
+
+        <KpiCard
+          icon={Battery}
+          label="Consumo Energético Total"
+          value={`${totalKw.toFixed(
+            1
+          )} kW`}
+          sub="Tendencia estable"
+          pillStatus="normal"
+          accent={C.green}
+        />
+
+        <KpiCard
+          icon={Bell}
+          label="Alertas Activas"
+          value={
+            alerts.length
+          }
+          sub={`${criticoCount} crítica, ${advertenciaCount} advertencias`}
+          pillStatus="critico"
+          accent={C.red}
+        />
+
+        <KpiCard
+          icon={
+            ShieldCheck
+          }
+          label="Hotspots Mitigados"
+          value={`${hotspotsMitigados} este mes`}
+          sub="↑ 14 esta semana"
+          pillStatus="normal"
+          accent={C.green}
+        />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }} className="grk-main-grid">
-        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Mapa de Sala — Piso Principal</div>
-          <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 12 }}>24 racks monitoreados · Haga clic para ver detalle</div>
-          {PASILLOS.map((p, colIdx) => null)}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 6 }}>
-            {PASILLOS.map((p) => (
-              <div key={p} style={{ fontSize: 10, color: C.textSecondary, textAlign: "center", fontWeight: 700 }}>PASILLO {p}</div>
-            ))}
+
+      <div
+        style={{
+          display:
+            "grid",
+          gridTemplateColumns:
+            "2fr 1fr",
+          gap: 12,
+        }}
+        className="grk-main-grid"
+      >
+
+        {/* Mapa */}
+
+        <div
+          style={{
+            background:
+              C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              marginBottom: 2,
+            }}
+          >
+            Mapa de Sala — Piso Principal
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
-            {racks.map((r) => (
-              <RackCell key={r.id} rack={r} onClick={onOpenRack} />
-            ))}
+
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+              marginBottom: 12,
+            }}
+          >
+            24 racks monitoreados · Haga clic para ver detalle
           </div>
-          <div style={{ display: "flex", gap: 14, marginTop: 14, flexWrap: "wrap" }}>
-            <Legend color={C.green} label="Normal" />
-            <Legend color={C.amber} label="Advertencia" />
-            <Legend color={C.red} label="Alerta" />
+
+          <div
+            style={{
+              display:
+                "grid",
+              gridTemplateColumns:
+                "repeat(4, 1fr)",
+              gap: 6,
+              marginBottom: 6,
+            }}
+          >
+            {PASILLOS.map(
+              (p) => (
+                <div
+                  key={p}
+                  style={{
+                    fontSize: 10,
+                    color:
+                      C.textSecondary,
+                    textAlign:
+                      "center",
+                    fontWeight:
+                      700,
+                  }}
+                >
+                  PASILLO {p}
+                </div>
+              )
+            )}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 16, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
-            <Stat label="Racks Normales" value={normalCount} color={C.green} />
-            <Stat label="En Advertencia" value={advertenciaCount} color={C.amber} />
-            <Stat label="Temp. Promedio" value={`${avgTemp.toFixed(1)}°C`} color={C.textPrimary} />
+
+          <div
+            style={{
+              display:
+                "grid",
+              gridTemplateColumns:
+                "repeat(4, 1fr)",
+              gap: 6,
+            }}
+          >
+            {racks.map(
+              (r) => (
+                <RackCell
+                  key={r.id}
+                  rack={r}
+                  onClick={
+                    onOpenRack
+                  }
+                />
+              )
+            )}
+          </div>
+
+          <div
+            style={{
+              display:
+                "flex",
+              gap: 14,
+              marginTop: 14,
+              flexWrap:
+                "wrap",
+            }}
+          >
+            <Legend
+              color={C.green}
+              label="Normal"
+            />
+
+            <Legend
+              color={C.amber}
+              label="Advertencia"
+            />
+
+            <Legend
+              color={C.red}
+              label="Alerta"
+            />
+          </div>
+
+          <div
+            style={{
+              display:
+                "grid",
+              gridTemplateColumns:
+                "repeat(3, 1fr)",
+              gap: 10,
+              marginTop: 16,
+              borderTop: `1px solid ${C.border}`,
+              paddingTop: 12,
+            }}
+          >
+            <Stat
+              label="Racks Normales"
+              value={
+                normalCount
+              }
+              color={
+                C.green
+              }
+            />
+
+            <Stat
+              label="En Advertencia"
+              value={
+                advertenciaCount
+              }
+              color={
+                C.amber
+              }
+            />
+
+            <Stat
+              label="Temp. Promedio"
+              value={`${avgTemp.toFixed(
+                1
+              )}°C`}
+              color={
+                C.textPrimary
+              }
+            />
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Tendencia Energética</div>
-            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 8 }}>Últimas 6 horas · kW</div>
-            <div style={{ height: 150 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={energyHistory}>
+
+        {/* Columna derecha */}
+
+        <div
+          style={{
+            display:
+              "flex",
+            flexDirection:
+              "column",
+            gap: 12,
+          }}
+        >
+
+          {/* Energía */}
+
+          <div
+            style={{
+              background:
+                C.panel,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 16,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
+              Tendencia Energética
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                color:
+                  C.textSecondary,
+                marginBottom: 8,
+              }}
+            >
+              Últimas 6 horas · kW
+            </div>
+
+            <div
+              style={{
+                height: 150,
+              }}
+            >
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+                <AreaChart
+                  data={
+                    energyHistory
+                  }
+                >
                   <defs>
-                    <linearGradient id="grkArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={C.green} stopOpacity={0.5} />
-                      <stop offset="100%" stopColor={C.green} stopOpacity={0} />
+                    <linearGradient
+                      id="grkArea"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor={
+                          C.green
+                        }
+                        stopOpacity={
+                          0.5
+                        }
+                      />
+
+                      <stop
+                        offset="100%"
+                        stopColor={
+                          C.green
+                        }
+                        stopOpacity={
+                          0
+                        }
+                      />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="time" hide />
-                  <YAxis hide domain={["dataMin - 10", "dataMax + 10"]} />
-                  <Tooltip contentStyle={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: C.textSecondary }} />
-                  <Area type="monotone" dataKey="kw" stroke={C.green} strokeWidth={2} fill="url(#grkArea)" />
+
+                  <XAxis
+                    dataKey="time"
+                    hide
+                  />
+
+                  <YAxis
+                    hide
+                    domain={[
+                      "dataMin - 10",
+                      "dataMax + 10",
+                    ]}
+                  />
+
+                  <Tooltip
+                    contentStyle={{
+                      background:
+                        C.panelAlt,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                    labelStyle={{
+                      color:
+                        C.textSecondary,
+                    }}
+                  />
+
+                  <Area
+                    type="monotone"
+                    dataKey="kw"
+                    stroke={
+                      C.green
+                    }
+                    strokeWidth={2}
+                    fill="url(#grkArea)"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <AlertTriangle size={14} color={C.red} /> Alertas Activas
+
+          {/* Alertas */}
+
+          <div
+            style={{
+              background:
+                C.panel,
+              border: `1px solid ${C.border}`,
+              borderRadius: 14,
+              padding: 16,
+              flex: 1,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                marginBottom: 10,
+                display:
+                  "flex",
+                alignItems:
+                  "center",
+                gap: 6,
+              }}
+            >
+              <AlertTriangle
+                size={14}
+                color={C.red}
+              />
+
+              Alertas Activas
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {alerts.length === 0 && <div style={{ fontSize: 12, color: C.textSecondary }}>Sin alertas activas.</div>}
-              {alerts.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => onOpenRack(r)}
+
+            <div
+              style={{
+                display:
+                  "flex",
+                flexDirection:
+                  "column",
+                gap: 8,
+              }}
+            >
+              {alerts.length ===
+                0 && (
+                <div
                   style={{
-                    display: "flex", alignItems: "center", gap: 8, background: "transparent",
-                    border: "none", borderLeft: `3px solid ${statusColor(r.status)}`, padding: "6px 0 6px 10px",
-                    textAlign: "left", cursor: "pointer",
+                    fontSize: 12,
+                    color:
+                      C.textSecondary,
                   }}
                 >
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: statusColor(r.status) }}>{r.label}</div>
-                    <div style={{ fontSize: 11, color: C.textSecondary }}>
-                      {r.status === "critico" ? "Hotspot inminente — nivel medio" : "Temperatura elevada"} · {r.temp.toFixed(1)}°C
+                  Sin alertas activas.
+                </div>
+              )}
+
+              {alerts.map(
+                (r) => (
+                  <button
+                    key={r.id}
+                    onClick={() =>
+                      onOpenRack(r)
+                    }
+                    style={{
+                      display:
+                        "flex",
+                      alignItems:
+                        "center",
+                      gap: 8,
+                      background:
+                        "transparent",
+                      border:
+                        "none",
+                      borderLeft: `3px solid ${statusColor(
+                        r.status
+                      )}`,
+                      padding:
+                        "6px 0 6px 10px",
+                      textAlign:
+                        "left",
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color:
+                            statusColor(
+                              r.status
+                            ),
+                        }}
+                      >
+                        {
+                          r.label
+                        }
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color:
+                            C.textSecondary,
+                        }}
+                      >
+                        {r.status ===
+                        "critico"
+                          ? "Hotspot inminente — nivel medio"
+                          : "Temperatura elevada"}{" "}
+                        ·{" "}
+                        {r.temp.toFixed(
+                          1
+                        )}
+                        °C
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                )
+              )}
             </div>
           </div>
         </div>
       </div>
+
+
       <style>{`
-        @media (min-width: 900px) { .grk-kpi-grid { grid-template-columns: repeat(4, 1fr) !important; } }
-        @media (max-width: 899px) { .grk-main-grid { grid-template-columns: 1fr !important; } }
+        @media (min-width: 900px) {
+          .grk-kpi-grid {
+            grid-template-columns: repeat(4, 1fr) !important;
+          }
+        }
+
+        @media (max-width: 899px) {
+          .grk-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
       `}</style>
     </div>
   );
 }
 
-function Legend({ color, label }) {
+
+function Legend({
+  color,
+  label,
+}) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textSecondary }}>
-      <span style={{ width: 9, height: 9, borderRadius: 3, background: color }} /> {label}
+    <div
+      style={{
+        display:
+          "flex",
+        alignItems:
+          "center",
+        gap: 6,
+        fontSize: 11,
+        color:
+          C.textSecondary,
+      }}
+    >
+      <span
+        style={{
+          width: 9,
+          height: 9,
+          borderRadius: 3,
+          background:
+            color,
+        }}
+      />
+
+      {label}
     </div>
   );
 }
-function Stat({ label, value, color }) {
+
+
+function Stat({
+  label,
+  value,
+  color,
+}) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: C.textSecondary, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
+      <div
+        style={{
+          fontSize: 10,
+          color:
+            C.textSecondary,
+          textTransform:
+            "uppercase",
+          marginBottom: 2,
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 700,
+          color,
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
 
-// ---------- Rack detail view ----------
-function RackDetail({ rack, onBack, onSendCommand }) {
-  const [pwm, setPwm] = useState(rack.pwm);
-  const [sentMsg, setSentMsg] = useState("");
-  useEffect(() => setPwm(rack.pwm), [rack.id]);
+
+// ============================================================
+// RACK DETAIL
+// ============================================================
+
+function RackDetail({
+  rack,
+  onBack,
+  onSendCommand,
+}) {
+  const [pwm, setPwm] =
+    useState(rack.pwm);
+
+  const [sentMsg, setSentMsg] =
+    useState("");
+
+  useEffect(() => {
+    setPwm(rack.pwm);
+  }, [rack.id, rack.pwm]);
 
   const levels = [
-    { label: "Nivel Superior", temp: (rack.temp + 1.1).toFixed(1) },
-    { label: "Nivel Medio", temp: rack.temp.toFixed(1) },
-    { label: "Nivel Inferior", temp: (rack.temp - 0.8).toFixed(1) },
+    {
+      label:
+        "Nivel Superior",
+      temp: (
+        rack.temp + 1.1
+      ).toFixed(1),
+    },
+    {
+      label:
+        "Nivel Medio",
+      temp:
+        rack.temp.toFixed(
+          1
+        ),
+    },
+    {
+      label:
+        "Nivel Inferior",
+      temp: (
+        rack.temp - 0.8
+      ).toFixed(1),
+    },
   ];
 
   return (
     <div>
-      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: "none", color: C.textSecondary, cursor: "pointer", marginBottom: 12, fontSize: 12 }}>
-        <ChevronLeft size={16} /> Volver al dashboard
+
+      <button
+        onClick={onBack}
+        style={{
+          display:
+            "flex",
+          alignItems:
+            "center",
+          gap: 6,
+          background:
+            "transparent",
+          border: "none",
+          color:
+            C.textSecondary,
+          cursor:
+            "pointer",
+          marginBottom: 12,
+          fontSize: 12,
+        }}
+      >
+        <ChevronLeft
+          size={16}
+        />
+
+        Volver al dashboard
       </button>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+
+
+      <div
+        style={{
+          display:
+            "flex",
+          justifyContent:
+            "space-between",
+          alignItems:
+            "center",
+          marginBottom: 14,
+          flexWrap:
+            "wrap",
+          gap: 8,
+        }}
+      >
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>{rack.label} — Pasillo {rack.pasillo}, Fila {rack.fila}</div>
-          <div style={{ fontSize: 12, color: C.textSecondary }}>Sensores IoT de 3 niveles · Actuador PWM local</div>
-        </div>
-        <Pill status={rack.status} />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 14 }}>
-        {levels.map((l) => (
-          <div key={l.label} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
-            <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 6 }}>{l.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-              <Thermometer size={16} color={statusColor(rack.status)} /> {l.temp}°C
-            </div>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+            }}
+          >
+            {rack.label} — Pasillo{" "}
+            {rack.pasillo}, Fila{" "}
+            {rack.fila}
           </div>
-        ))}
+
+          <div
+            style={{
+              fontSize: 12,
+              color:
+                C.textSecondary,
+            }}
+          >
+            Sensores IoT de 3 niveles · Actuador PWM local
+          </div>
+        </div>
+
+        <Pill
+          status={
+            rack.status
+          }
+        />
       </div>
 
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-          <Activity size={14} color={C.green} /> Control de Actuador — Ventilador PWM
+
+      <div
+        style={{
+          display:
+            "grid",
+          gridTemplateColumns:
+            "repeat(3, 1fr)",
+          gap: 10,
+          marginBottom: 14,
+        }}
+      >
+        {levels.map(
+          (l) => (
+            <div
+              key={
+                l.label
+              }
+              style={{
+                background:
+                  C.panel,
+                border: `1px solid ${C.border}`,
+                borderRadius: 12,
+                padding: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  color:
+                    C.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                {
+                  l.label
+                }
+              </div>
+
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  display:
+                    "flex",
+                  alignItems:
+                    "center",
+                  gap: 6,
+                }}
+              >
+                <Thermometer
+                  size={16}
+                  color={statusColor(
+                    rack.status
+                  )}
+                />
+
+                {l.temp}°C
+              </div>
+            </div>
+          )
+        )}
+      </div>
+
+
+      <div
+        style={{
+          background:
+            C.panel,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            marginBottom: 10,
+            display:
+              "flex",
+            alignItems:
+              "center",
+            gap: 6,
+          }}
+        >
+          <Activity
+            size={14}
+            color={
+              C.green
+            }
+          />
+
+          Control de Actuador — Ventilador PWM
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-          <input type="range" min={0} max={100} value={pwm} onChange={(e) => setPwm(Number(e.target.value))} style={{ flex: 1 }} />
-          <span style={{ fontSize: 14, fontWeight: 700, minWidth: 44 }}>{pwm}%</span>
+
+        <div
+          style={{
+            display:
+              "flex",
+            alignItems:
+              "center",
+            gap: 12,
+            marginBottom: 10,
+          }}
+        >
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={pwm}
+            onChange={(e) =>
+              setPwm(
+                Number(
+                  e.target.value
+                )
+              )
+            }
+            style={{
+              flex: 1,
+            }}
+          />
+
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              minWidth: 44,
+            }}
+          >
+            {pwm}%
+          </span>
         </div>
+
         <button
           onClick={() => {
-            onSendCommand(rack.num, pwm);
-            setSentMsg(`Comando enviado: velocidad de ventilador ajustada a ${pwm}%.`);
-            setTimeout(() => setSentMsg(""), 3000);
+            onSendCommand(
+              rack.num,
+              pwm
+            );
+
+            setSentMsg(
+              `Comando enviado: velocidad de ventilador ajustada a ${pwm}%.`
+            );
+
+            setTimeout(
+              () =>
+                setSentMsg(""),
+              3000
+            );
           }}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: C.green, color: "#04342C", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+          style={{
+            display:
+              "flex",
+            alignItems:
+              "center",
+            gap: 6,
+            background:
+              C.green,
+            color:
+              "#04342C",
+            border:
+              "none",
+            borderRadius: 8,
+            padding:
+              "8px 14px",
+            fontSize: 12,
+            fontWeight: 700,
+            cursor:
+              "pointer",
+          }}
         >
-          <Send size={14} /> Enviar comando a Arduino
+          <Send
+            size={14}
+          />
+
+          Enviar comando a Arduino
         </button>
-        {sentMsg && <div style={{ fontSize: 11, color: C.green, marginTop: 8 }}>{sentMsg}</div>}
+
+        {sentMsg && (
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.green,
+              marginTop: 8,
+            }}
+          >
+            {sentMsg}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ---------- Predictivo view ----------
-function Predictivo({ racks, selectedRack, onSelect }) {
 
-  const [prediction, setPrediction] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+// ============================================================
+// PREDICTIVO
+// ============================================================
+
+function Predictivo({
+  racks,
+  selectedRack,
+  onSelect,
+}) {
+  const [prediction, setPrediction] =
+    useState(null);
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
 
   useEffect(() => {
-
     async function getPrediction() {
-
       setLoading(true);
       setError("");
 
       try {
-
-        const response = await fetch(
-          `http://localhost:4000/api/ai/predict/${selectedRack.num}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              temperature: selectedRack.temp,
-              humidity: 48,
-              cpu_load: 78,
-              airflow: selectedRack.pwm,
-              power_kw: 245,
-            }),
-          }
-        );
+        const response =
+          await fetch(
+            `http://localhost:4000/api/ai/predict/${selectedRack.num}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                temperature:
+                  selectedRack.temp,
+                humidity: 48,
+                cpu_load: 78,
+                airflow:
+                  selectedRack.pwm,
+                power_kw: 245,
+              }),
+            }
+          );
 
         if (!response.ok) {
           throw new Error(
@@ -531,12 +2384,13 @@ function Predictivo({ racks, selectedRack, onSelect }) {
           );
         }
 
-        const data = await response.json();
+        const data =
+          await response.json();
 
-        setPrediction(data);
-
+        setPrediction(
+          data
+        );
       } catch (err) {
-
         console.error(
           "Error obteniendo predicción:",
           err
@@ -545,26 +2399,25 @@ function Predictivo({ racks, selectedRack, onSelect }) {
         setError(
           "No fue posible obtener la predicción del servicio de IA."
         );
-
       } finally {
-
-        setLoading(false);
-
+        setLoading(
+          false
+        );
       }
     }
 
     getPrediction();
-
   }, [
     selectedRack.num,
     selectedRack.temp,
-    selectedRack.pwm
+    selectedRack.pwm,
   ]);
 
 
-  const risk = prediction
-    ? prediction.risk_percentage
-    : 0;
+  const risk =
+    prediction
+      ? prediction.risk_percentage
+      : 0;
 
   const riskColor =
     risk >= 70
@@ -574,34 +2427,43 @@ function Predictivo({ racks, selectedRack, onSelect }) {
         : C.green;
 
 
-  const forecast = prediction
-    ? [
-        {
-          min: "Actual",
-          temp: Number(
-            selectedRack.temp.toFixed(1)
-          ),
-        },
-        {
-          min: "+15m",
-          temp: prediction.prediction_temperature_c,
-        },
-      ]
-    : [
-        {
-          min: "Actual",
-          temp: selectedRack.temp,
-        },
-      ];
+  const forecast =
+    prediction
+      ? [
+          {
+            min: "Actual",
+            temp: Number(
+              selectedRack.temp.toFixed(
+                1
+              )
+            ),
+          },
+          {
+            min: "+15m",
+            temp:
+              prediction.prediction_temperature_c,
+          },
+        ]
+      : [
+          {
+            min: "Actual",
+            temp:
+              selectedRack.temp,
+          },
+        ];
 
 
-  const ranked = [...racks]
-    .sort((a, b) => b.temp - a.temp)
+  const ranked = [
+    ...racks,
+  ]
+    .sort(
+      (a, b) =>
+        b.temp - a.temp
+    )
     .slice(0, 6);
 
 
   return (
-
     <div>
 
       <div
@@ -617,7 +2479,8 @@ function Predictivo({ racks, selectedRack, onSelect }) {
       <div
         style={{
           fontSize: 11,
-          color: C.textSecondary,
+          color:
+            C.textSecondary,
           marginBottom: 14,
         }}
       >
@@ -626,12 +2489,13 @@ function Predictivo({ racks, selectedRack, onSelect }) {
 
 
       {error && (
-
         <div
           style={{
-            background: C.red + "18",
+            background:
+              C.red + "18",
             border: `1px solid ${C.red}55`,
-            color: C.red,
+            color:
+              C.red,
             borderRadius: 10,
             padding: 10,
             marginBottom: 12,
@@ -640,130 +2504,150 @@ function Predictivo({ racks, selectedRack, onSelect }) {
         >
           {error}
         </div>
-
       )}
 
 
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr",
+          display:
+            "grid",
+          gridTemplateColumns:
+            "2fr 1fr",
           gap: 12,
         }}
         className="grk-pred-grid"
       >
 
-
-        {/* ------------------------------------------------ */}
-        {/* GRÁFICA */}
-        {/* ------------------------------------------------ */}
+        {/* Gráfica */}
 
         <div
           style={{
-            background: C.panel,
+            background:
+              C.panel,
             border: `1px solid ${C.border}`,
             borderRadius: 14,
             padding: 16,
           }}
         >
-
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
+              display:
+                "flex",
+              justifyContent:
+                "space-between",
+              alignItems:
+                "center",
               marginBottom: 10,
             }}
           >
-
             <span
               style={{
                 fontSize: 13,
                 fontWeight: 700,
               }}
             >
-              Pronóstico — {selectedRack.label}
+              Pronóstico —{" "}
+              {
+                selectedRack.label
+              }
             </span>
 
-
             <select
-              value={selectedRack.num}
+              value={
+                selectedRack.num
+              }
               onChange={(e) =>
                 onSelect(
-                  Number(e.target.value)
+                  Number(
+                    e.target.value
+                  )
                 )
               }
               style={{
-                background: C.panelAlt,
-                color: C.textPrimary,
+                background:
+                  C.panelAlt,
+                color:
+                  C.textPrimary,
                 border: `1px solid ${C.border}`,
                 borderRadius: 8,
                 fontSize: 12,
-                padding: "4px 8px",
+                padding:
+                  "4px 8px",
               }}
             >
-
-              {racks.map((r) => (
-
-                <option
-                  key={r.id}
-                  value={r.num}
-                >
-                  {r.label}
-                </option>
-
-              ))}
-
+              {racks.map(
+                (r) => (
+                  <option
+                    key={r.id}
+                    value={
+                      r.num
+                    }
+                  >
+                    {
+                      r.label
+                    }
+                  </option>
+                )
+              )}
             </select>
-
           </div>
 
 
           {loading ? (
-
             <div
               style={{
                 height: 200,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: C.textSecondary,
+                display:
+                  "flex",
+                alignItems:
+                  "center",
+                justifyContent:
+                  "center",
+                color:
+                  C.textSecondary,
                 fontSize: 12,
               }}
             >
               Ejecutando modelos XGBoost + LSTM...
             </div>
-
           ) : (
-
-            <div style={{ height: 200 }}>
-
+            <div
+              style={{
+                height: 200,
+              }}
+            >
               <ResponsiveContainer
                 width="100%"
                 height="100%"
               >
-
                 <LineChart
-                  data={forecast}
+                  data={
+                    forecast
+                  }
                 >
-
                   <CartesianGrid
-                    stroke={C.border}
+                    stroke={
+                      C.border
+                    }
                     strokeDasharray="3 3"
-                    vertical={false}
+                    vertical={
+                      false
+                    }
                   />
 
                   <XAxis
                     dataKey="min"
                     tick={{
-                      fill: C.textSecondary,
+                      fill:
+                        C.textSecondary,
                       fontSize: 11,
                     }}
                   />
 
                   <YAxis
                     tick={{
-                      fill: C.textSecondary,
+                      fill:
+                        C.textSecondary,
                       fontSize: 11,
                     }}
                     domain={[
@@ -774,19 +2658,25 @@ function Predictivo({ racks, selectedRack, onSelect }) {
 
                   <ReferenceLine
                     y={27}
-                    stroke={C.red}
+                    stroke={
+                      C.red
+                    }
                     strokeDasharray="4 4"
                     label={{
-                      value: "Umbral crítico",
-                      fill: C.red,
+                      value:
+                        "Umbral crítico",
+                      fill:
+                        C.red,
                       fontSize: 10,
-                      position: "insideTopRight",
+                      position:
+                        "insideTopRight",
                     }}
                   />
 
                   <Tooltip
                     contentStyle={{
-                      background: C.panelAlt,
+                      background:
+                        C.panelAlt,
                       border: `1px solid ${C.border}`,
                       borderRadius: 8,
                       fontSize: 12,
@@ -796,44 +2686,42 @@ function Predictivo({ racks, selectedRack, onSelect }) {
                   <Line
                     type="monotone"
                     dataKey="temp"
-                    stroke={C.green}
+                    stroke={
+                      C.green
+                    }
                     strokeWidth={2}
                     dot
                   />
-
                 </LineChart>
-
               </ResponsiveContainer>
-
             </div>
-
           )}
-
         </div>
 
 
-        {/* ------------------------------------------------ */}
-        {/* INFORMACIÓN DE IA */}
-        {/* ------------------------------------------------ */}
+        {/* Información IA */}
 
         <div
           style={{
-            background: C.panel,
+            background:
+              C.panel,
             border: `1px solid ${C.border}`,
             borderRadius: 14,
             padding: 16,
-            display: "flex",
-            flexDirection: "column",
+            display:
+              "flex",
+            flexDirection:
+              "column",
             gap: 14,
           }}
         >
 
           <div>
-
             <div
               style={{
                 fontSize: 11,
-                color: C.textSecondary,
+                color:
+                  C.textSecondary,
                 marginBottom: 6,
               }}
             >
@@ -844,7 +2732,8 @@ function Predictivo({ racks, selectedRack, onSelect }) {
               style={{
                 fontSize: 30,
                 fontWeight: 700,
-                color: riskColor,
+                color:
+                  riskColor,
               }}
             >
               {loading
@@ -855,63 +2744,61 @@ function Predictivo({ racks, selectedRack, onSelect }) {
             <div
               style={{
                 height: 6,
-                background: C.panelAlt,
-                borderRadius: 999,
+                background:
+                  C.panelAlt,
+                borderRadius:
+                  999,
                 marginTop: 8,
-                overflow: "hidden",
+                overflow:
+                  "hidden",
               }}
             >
-
               <div
                 style={{
                   width: `${risk}%`,
                   height: "100%",
-                  background: riskColor,
+                  background:
+                    riskColor,
                 }}
               />
-
             </div>
-
           </div>
 
 
-          {/* ------------------------------------------------ */}
-          {/* PREDICCIONES */}
-          {/* ------------------------------------------------ */}
-
           {prediction && (
-
             <div
               style={{
                 borderTop: `1px solid ${C.border}`,
                 paddingTop: 12,
               }}
             >
-
               <div
                 style={{
                   fontSize: 11,
-                  color: C.textSecondary,
+                  color:
+                    C.textSecondary,
                   marginBottom: 8,
                 }}
               >
                 Resultado de modelos
               </div>
 
-
               <div
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
+                  display:
+                    "flex",
+                  flexDirection:
+                    "column",
                   gap: 7,
                   fontSize: 12,
                 }}
               >
-
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display:
+                      "flex",
+                    justifyContent:
+                      "space-between",
                   }}
                 >
                   <span>
@@ -919,15 +2806,19 @@ function Predictivo({ racks, selectedRack, onSelect }) {
                   </span>
 
                   <strong>
-                    {prediction.xgboost_prediction_c}°C
+                    {
+                      prediction.xgboost_prediction_c
+                    }
+                    °C
                   </strong>
                 </div>
 
-
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display:
+                      "flex",
+                    justifyContent:
+                      "space-between",
                   }}
                 >
                   <span>
@@ -935,16 +2826,21 @@ function Predictivo({ racks, selectedRack, onSelect }) {
                   </span>
 
                   <strong>
-                    {prediction.lstm_prediction_c}°C
+                    {
+                      prediction.lstm_prediction_c
+                    }
+                    °C
                   </strong>
                 </div>
 
-
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    color: C.green,
+                    display:
+                      "flex",
+                    justifyContent:
+                      "space-between",
+                    color:
+                      C.green,
                   }}
                 >
                   <span>
@@ -952,34 +2848,29 @@ function Predictivo({ racks, selectedRack, onSelect }) {
                   </span>
 
                   <strong>
-                    {prediction.prediction_temperature_c}°C
+                    {
+                      prediction.prediction_temperature_c
+                    }
+                    °C
                   </strong>
                 </div>
-
               </div>
-
             </div>
-
           )}
 
 
-          {/* ------------------------------------------------ */}
-          {/* RECOMENDACIÓN */}
-          {/* ------------------------------------------------ */}
-
           {prediction && (
-
             <div
               style={{
                 borderTop: `1px solid ${C.border}`,
                 paddingTop: 12,
               }}
             >
-
               <div
                 style={{
                   fontSize: 11,
-                  color: C.textSecondary,
+                  color:
+                    C.textSecondary,
                   marginBottom: 6,
                 }}
               >
@@ -990,20 +2881,17 @@ function Predictivo({ racks, selectedRack, onSelect }) {
                 style={{
                   fontSize: 12,
                   lineHeight: 1.5,
-                  color: C.textPrimary,
+                  color:
+                    C.textPrimary,
                 }}
               >
-                {prediction.recommendation}
+                {
+                  prediction.recommendation
+                }
               </div>
-
             </div>
-
           )}
 
-
-          {/* ------------------------------------------------ */}
-          {/* RACKS PRIORIZADOS */}
-          {/* ------------------------------------------------ */}
 
           <div
             style={{
@@ -1011,78 +2899,87 @@ function Predictivo({ racks, selectedRack, onSelect }) {
               paddingTop: 12,
             }}
           >
-
             <div
               style={{
                 fontSize: 11,
-                color: C.textSecondary,
+                color:
+                  C.textSecondary,
                 marginBottom: 8,
               }}
             >
               Racks priorizados
             </div>
 
-
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
+                display:
+                  "flex",
+                flexDirection:
+                  "column",
                 gap: 6,
               }}
             >
-
-              {ranked.map((r) => (
-
-                <button
-                  key={r.id}
-                  onClick={() =>
-                    onSelect(r.num)
-                  }
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    background:
-                      r.num === selectedRack.num
-                        ? C.panelAlt
-                        : "transparent",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "5px 8px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-
-                  <span
+              {ranked.map(
+                (r) => (
+                  <button
+                    key={r.id}
+                    onClick={() =>
+                      onSelect(
+                        r.num
+                      )
+                    }
                     style={{
-                      color: C.textPrimary,
+                      display:
+                        "flex",
+                      justifyContent:
+                        "space-between",
+                      background:
+                        r.num ===
+                        selectedRack.num
+                          ? C.panelAlt
+                          : "transparent",
+                      border:
+                        "none",
+                      borderRadius: 6,
+                      padding:
+                        "5px 8px",
+                      cursor:
+                        "pointer",
+                      fontSize: 12,
                     }}
                   >
-                    {r.label}
-                  </span>
+                    <span
+                      style={{
+                        color:
+                          C.textPrimary,
+                      }}
+                    >
+                      {
+                        r.label
+                      }
+                    </span>
 
-                  <span
-                    style={{
-                      color:
-                        statusColor(
-                          r.status
-                        ),
-                      fontWeight: 700,
-                    }}
-                  >
-                    {r.temp.toFixed(1)}°
-                  </span>
-
-                </button>
-
-              ))}
-
+                    <span
+                      style={{
+                        color:
+                          statusColor(
+                            r.status
+                          ),
+                        fontWeight:
+                          700,
+                      }}
+                    >
+                      {r.temp.toFixed(
+                        1
+                      )}
+                      °
+                    </span>
+                  </button>
+                )
+              )}
             </div>
-
           </div>
-
         </div>
-
       </div>
 
 
@@ -1093,49 +2990,791 @@ function Predictivo({ racks, selectedRack, onSelect }) {
           }
         }
       `}</style>
-
     </div>
   );
 }
 
-// ---------- Historial view ----------
-function Historial({ log, filter, setFilter }) {
+
+// ============================================================
+// HISTORIAL
+// ============================================================
+
+function Historial({
+  log,
+  filter,
+  setFilter,
+}) {
   const now = Date.now();
-  const windowMs = filter === "24h" ? 1000 * 60 * 60 * 24 : filter === "7d" ? 1000 * 60 * 60 * 24 * 7 : 1000 * 60 * 60 * 24 * 30;
-  const filtered = log.filter((e) => now - e.ts <= windowMs);
+
+  const windowMs =
+    filter === "24h"
+      ? 1000 *
+        60 *
+        60 *
+        24
+      : filter === "7d"
+        ? 1000 *
+          60 *
+          60 *
+          24 *
+          7
+        : 1000 *
+          60 *
+          60 *
+          24 *
+          30;
+
+  const filtered =
+    log.filter(
+      (e) =>
+        now - e.ts <=
+        windowMs
+    );
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+
+      <div
+        style={{
+          display:
+            "flex",
+          justifyContent:
+            "space-between",
+          alignItems:
+            "center",
+          marginBottom: 14,
+          flexWrap:
+            "wrap",
+          gap: 8,
+        }}
+      >
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>Historial de Eventos</div>
-          <div style={{ fontSize: 11, color: C.textSecondary }}>Registro de alertas, comandos y acciones del sistema</div>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            Historial de Eventos
+          </div>
+
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+            }}
+          >
+            Registro de alertas, comandos y acciones del sistema
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px" }}>
-          <Calendar size={14} color={C.textSecondary} />
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} style={{ background: "transparent", color: C.textPrimary, border: "none", fontSize: 12 }}>
-            <option value="24h">Últimas 24h</option>
-            <option value="7d">Últimos 7 días</option>
-            <option value="30d">Últimos 30 días</option>
+
+        <div
+          style={{
+            display:
+              "flex",
+            alignItems:
+              "center",
+            gap: 6,
+            background:
+              C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 8,
+            padding:
+              "4px 8px",
+          }}
+        >
+          <Calendar
+            size={14}
+            color={
+              C.textSecondary
+            }
+          />
+
+          <select
+            value={filter}
+            onChange={(e) =>
+              setFilter(
+                e.target.value
+              )
+            }
+            style={{
+              background:
+                "transparent",
+              color:
+                C.textPrimary,
+              border:
+                "none",
+              fontSize: 12,
+            }}
+          >
+            <option value="24h">
+              Últimas 24h
+            </option>
+
+            <option value="7d">
+              Últimos 7 días
+            </option>
+
+            <option value="30d">
+              Últimos 30 días
+            </option>
           </select>
         </div>
       </div>
 
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" }}>
-        {filtered.length === 0 && <div style={{ padding: 16, fontSize: 12, color: C.textSecondary }}>Sin eventos en este período.</div>}
-        {filtered.map((e, i) => (
-          <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: i === 0 ? "none" : `1px solid ${C.border}` }}>
-            {e.level === "critico" ? <AlertTriangle size={15} color={C.red} /> : e.level === "advertencia" ? <AlertTriangle size={15} color={C.amber} /> : <CheckCircle2 size={15} color={C.green} />}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, color: C.textPrimary }}>{e.msg}</div>
-              <div style={{ fontSize: 11, color: C.textSecondary }}>Rack #{String(e.rack).padStart(2, "0")}</div>
-            </div>
-            <div style={{ fontSize: 11, color: C.textSecondary, whiteSpace: "nowrap" }}>
-              {new Date(e.ts).toLocaleString("es-SV", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-            </div>
+
+      <div
+        style={{
+          background:
+            C.panel,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          overflow:
+            "hidden",
+        }}
+      >
+        {filtered.length ===
+          0 && (
+          <div
+            style={{
+              padding: 16,
+              fontSize: 12,
+              color:
+                C.textSecondary,
+            }}
+          >
+            Sin eventos en este período.
           </div>
-        ))}
+        )}
+
+        {filtered.map(
+          (e, i) => (
+            <div
+              key={e.id}
+              style={{
+                display:
+                  "flex",
+                alignItems:
+                  "center",
+                gap: 10,
+                padding:
+                  "10px 14px",
+                borderTop:
+                  i === 0
+                    ? "none"
+                    : `1px solid ${C.border}`,
+              }}
+            >
+              {e.level ===
+              "critico" ? (
+                <AlertTriangle
+                  size={15}
+                  color={C.red}
+                />
+              ) : e.level ===
+                "advertencia" ? (
+                <AlertTriangle
+                  size={15}
+                  color={
+                    C.amber
+                  }
+                />
+              ) : (
+                <CheckCircle2
+                  size={15}
+                  color={
+                    C.green
+                  }
+                />
+              )}
+
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    color:
+                      C.textPrimary,
+                  }}
+                >
+                  {e.msg}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 11,
+                    color:
+                      C.textSecondary,
+                  }}
+                >
+                  Rack #
+                  {String(
+                    e.rack
+                  ).padStart(
+                    2,
+                    "0"
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontSize: 11,
+                  color:
+                    C.textSecondary,
+                  whiteSpace:
+                    "nowrap",
+                }}
+              >
+                {new Date(
+                  e.ts
+                ).toLocaleString(
+                  "es-SV",
+                  {
+                    day:
+                      "2-digit",
+                    month:
+                      "2-digit",
+                    hour:
+                      "2-digit",
+                    minute:
+                      "2-digit",
+                  }
+                )}
+              </div>
+            </div>
+          )
+        )}
       </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// CENTRO DE CONTROL
+// ============================================================
+
+function ControlCenter({
+  systemStatus,
+  controlLoading,
+  controlMessage,
+  onControl,
+  onStartAll,
+  onStopAll,
+}) {
+  const services = [
+    {
+      key: "mqtt",
+      name: "MQTT",
+      description:
+        "Broker de comunicación IoT",
+      icon: Radio,
+      color: C.blue,
+      controllable: false,
+    },
+
+    {
+      key: "backend",
+      name: "Backend",
+      description:
+        "API Express — puerto 4000",
+      icon: Server,
+      color: C.green,
+      start:
+        "/api/system/backend/start",
+      stop:
+        "/api/system/backend/stop",
+      controllable: true,
+    },
+
+    {
+      key: "ai",
+      name: "Inteligencia Artificial",
+      description:
+        "FastAPI + XGBoost + LSTM — puerto 8000",
+      icon: Cpu,
+      color: C.blue,
+      start:
+        "/api/system/ai/start",
+      stop:
+        "/api/system/ai/stop",
+      controllable: true,
+    },
+
+    {
+      key: "iot",
+      name: "Nodo IoT",
+      description:
+        "Sensor virtual del equipo",
+      icon: Wifi,
+      color: C.amber,
+      start:
+        "/api/system/iot/start",
+      stop:
+        "/api/system/iot/stop",
+      controllable: true,
+    },
+  ];
+
+
+  const activeCount =
+    Object.values(
+      systemStatus
+    ).filter(Boolean).length;
+
+
+  let generalStatus =
+    "critico";
+
+  if (activeCount === 4)
+    generalStatus =
+      "normal";
+  else if (activeCount > 0)
+    generalStatus =
+      "advertencia";
+
+
+  return (
+    <div>
+
+      {/* Encabezado */}
+
+      <div
+        style={{
+          display:
+            "flex",
+          justifyContent:
+            "space-between",
+          alignItems:
+            "center",
+          marginBottom: 14,
+          flexWrap:
+            "wrap",
+          gap: 10,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              display:
+                "flex",
+              alignItems:
+                "center",
+              gap: 8,
+            }}
+          >
+            <Settings
+              size={20}
+              color={
+                C.green
+              }
+            />
+
+            Centro de Control
+          </div>
+
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+              marginTop: 4,
+            }}
+          >
+            Administración de los servicios de GreenRack AI
+          </div>
+        </div>
+
+        <Pill
+          status={
+            generalStatus
+          }
+        />
+      </div>
+
+
+      {/* Servicios */}
+
+      <div
+        style={{
+          background:
+            C.panel,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+          marginBottom: 12,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            color:
+              C.textSecondary,
+            marginBottom: 12,
+          }}
+        >
+          Servicios del sistema
+        </div>
+
+
+        <div
+          style={{
+            display:
+              "grid",
+            gridTemplateColumns:
+              "repeat(2, 1fr)",
+            gap: 10,
+          }}
+          className="grk-control-grid"
+        >
+
+          {services.map(
+            (service) => {
+              const Icon =
+                service.icon;
+
+              const active =
+                systemStatus[
+                  service.key
+                ];
+
+              return (
+                <div
+                  key={
+                    service.key
+                  }
+                  style={{
+                    background:
+                      C.panelAlt,
+                    border: `1px solid ${
+                      active
+                        ? service.color +
+                          "55"
+                        : C.border
+                    }`,
+                    borderRadius: 12,
+                    padding: 14,
+                  }}
+                >
+
+                  <div
+                    style={{
+                      display:
+                        "flex",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "space-between",
+                      gap: 10,
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        alignItems:
+                          "center",
+                        gap: 10,
+                      }}
+                    >
+                      <Icon
+                        size={20}
+                        color={
+                          active
+                            ? service.color
+                            : C.textSecondary
+                        }
+                      />
+
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {
+                            service.name
+                          }
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color:
+                              C.textSecondary,
+                            marginTop: 3,
+                          }}
+                        >
+                          {
+                            service.description
+                          }
+                        </div>
+                      </div>
+                    </div>
+
+
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color:
+                          active
+                            ? C.green
+                            : C.red,
+                        background:
+                          active
+                            ? C.green +
+                              "18"
+                            : C.red +
+                              "18",
+                        border: `1px solid ${
+                          active
+                            ? C.green +
+                              "44"
+                            : C.red +
+                              "44"
+                        }`,
+                        borderRadius:
+                          999,
+                        padding:
+                          "4px 8px",
+                      }}
+                    >
+                      {active
+                        ? "ACTIVO"
+                        : "DETENIDO"}
+                    </span>
+                  </div>
+
+
+                  {service.controllable && (
+                    <button
+                      disabled={
+                        controlLoading
+                      }
+                      onClick={() =>
+                        onControl(
+                          active
+                            ? service.stop
+                            : service.start,
+                          active
+                            ? `${service.name} detenido.`
+                            : `${service.name} iniciado.`
+                        )
+                      }
+                      style={{
+                        width:
+                          "100%",
+                        marginTop: 12,
+                        display:
+                          "flex",
+                        alignItems:
+                          "center",
+                        justifyContent:
+                          "center",
+                        gap: 6,
+                        background:
+                          active
+                            ? C.red +
+                              "15"
+                            : C.green +
+                              "15",
+                        color:
+                          active
+                            ? C.red
+                            : C.green,
+                        border: `1px solid ${
+                          active
+                            ? C.red +
+                              "44"
+                            : C.green +
+                              "44"
+                        }`,
+                        borderRadius: 8,
+                        padding:
+                          "8px 12px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor:
+                          controlLoading
+                            ? "wait"
+                            : "pointer",
+                      }}
+                    >
+                      <Power
+                        size={14}
+                      />
+
+                      {active
+                        ? "Detener servicio"
+                        : "Iniciar servicio"}
+                    </button>
+                  )}
+
+                </div>
+              );
+            }
+          )}
+
+        </div>
+      </div>
+
+
+      {/* Control general */}
+
+      <div
+        style={{
+          background:
+            C.panel,
+          border: `1px solid ${C.border}`,
+          borderRadius: 14,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            marginBottom: 10,
+          }}
+        >
+          Control general
+        </div>
+
+        <div
+          style={{
+            display:
+              "flex",
+            gap: 10,
+            flexWrap:
+              "wrap",
+          }}
+        >
+
+          <button
+            disabled={
+              controlLoading
+            }
+            onClick={
+              onStartAll
+            }
+            style={{
+              flex: 1,
+              minWidth: 180,
+              background:
+                C.green,
+              color:
+                "#04342C",
+              border:
+                "none",
+              borderRadius: 8,
+              padding:
+                "10px 14px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor:
+                controlLoading
+                  ? "wait"
+                  : "pointer",
+              display:
+                "flex",
+              justifyContent:
+                "center",
+              alignItems:
+                "center",
+              gap: 7,
+            }}
+          >
+            <Power
+              size={15}
+            />
+
+            Iniciar todo
+          </button>
+
+
+          <button
+            disabled={
+              controlLoading
+            }
+            onClick={
+              onStopAll
+            }
+            style={{
+              flex: 1,
+              minWidth: 180,
+              background:
+                C.red +
+                "15",
+              color:
+                C.red,
+              border: `1px solid ${C.red}44`,
+              borderRadius: 8,
+              padding:
+                "10px 14px",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor:
+                controlLoading
+                  ? "wait"
+                  : "pointer",
+              display:
+                "flex",
+              justifyContent:
+                "center",
+              alignItems:
+                "center",
+              gap: 7,
+            }}
+          >
+            <Power
+              size={15}
+            />
+
+            Detener todo
+          </button>
+        </div>
+
+
+        {controlMessage && (
+          <div
+            style={{
+              marginTop: 12,
+              fontSize: 11,
+              color:
+                C.green,
+              background:
+                C.green +
+                "12",
+              border: `1px solid ${C.green}33`,
+              borderRadius: 8,
+              padding: 9,
+            }}
+          >
+            {controlMessage}
+          </div>
+        )}
+      </div>
+
+
+      <style>{`
+        @media (max-width: 899px) {
+          .grk-control-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
     </div>
   );
 }
