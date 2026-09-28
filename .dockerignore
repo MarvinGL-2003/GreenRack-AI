@@ -1,0 +1,10 @@
+node_modules
+.git
+.env
+mobile/node_modules
+mobile/.expo
+system/ai-service/venv
+system/ai-service/__pycache__
+iot-node/venv
+iot-node/__pycache__
+*.log

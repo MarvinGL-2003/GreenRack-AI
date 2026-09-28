@@ -231,6 +231,7 @@ const mqttClient = mqtt.connect(MQTT_BROKER);
 
 mqttClient.on('connect', () => {
   console.log('MQTT conectado correctamente');
+
   console.log(
     `Broker MQTT: ${MQTT_BROKER}`
   );
@@ -243,6 +244,7 @@ mqttClient.on('connect', () => {
           'Error suscribiéndose al topic MQTT:',
           err.message
         );
+
         return;
       }
 
@@ -563,6 +565,8 @@ app.get(
 
 app.post(
   '/api/racks/control',
+  authenticateToken,
+  authorizeRoles('admin', 'operator'),
   async (req, res) => {
     const {
       rackNum,
@@ -583,6 +587,7 @@ app.post(
 
 app.get(
   '/api/ai/health',
+  authenticateToken,
   async (req, res) => {
     try {
       const response =
@@ -613,6 +618,7 @@ app.get(
 
 app.get(
   '/api/ai/metrics',
+  authenticateToken,
   async (req, res) => {
     try {
       const response =
@@ -643,6 +649,7 @@ app.get(
 
 app.post(
   '/api/ai/predict/:rackNum',
+  authenticateToken,
   async (req, res) => {
     const rackNum =
       Number.parseInt(
@@ -715,12 +722,16 @@ app.post(
       const telemetry = {
         temperature:
           Number(latest.temperature),
+
         humidity:
           Number(latest.humidity),
+
         cpu_load:
           Number(latest.cpu_load),
+
         airflow:
           Number(latest.airflow),
+
         power_kw:
           Number(latest.power_kw)
       };
@@ -862,6 +873,7 @@ app.post(
 
 app.get(
   '/api/telemetry',
+  authenticateToken,
   async (req, res) => {
     try {
       const {
@@ -950,6 +962,7 @@ app.get(
 
 app.get(
   '/api/telemetry/:id',
+  authenticateToken,
   async (req, res) => {
     try {
       const id =
@@ -1007,6 +1020,8 @@ app.get(
 
 app.post(
   '/api/telemetry',
+  authenticateToken,
+  authorizeRoles('admin', 'operator'),
   async (req, res) => {
     try {
       const validationError =
@@ -1053,6 +1068,8 @@ app.post(
 
 app.put(
   '/api/telemetry/:id',
+  authenticateToken,
+  authorizeRoles('admin', 'operator'),
   async (req, res) => {
     try {
       const id =
@@ -1146,6 +1163,8 @@ app.put(
 
 app.delete(
   '/api/telemetry/:id',
+  authenticateToken,
+  authorizeRoles('admin'),
   async (req, res) => {
     try {
       const id =
