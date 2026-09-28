@@ -56,57 +56,71 @@ const C = {
   red: "#EF4444",
 };
 
-const PASILLOS = ["A", "B", "C", "D"];
-const FILAS = [1, 2, 3, 4, 5, 6];
+// ============================================================
+// RACKS ACTIVOS DEL SISTEMA
+// ============================================================
+
+const ACTIVE_RACKS = [1, 6, 12, 18];
 
 
 // ---------- Datos iniciales ----------
 
 function buildInitialRacks() {
-  const racks = [];
-  let num = 0;
+  const rackConfig = [
+    {
+      num: 1,
+      id: "A1",
+      pasillo: "A",
+      fila: 1,
+      temp: 25.0,
+      status: "normal",
+    },
+    {
+      num: 6,
+      id: "B2",
+      pasillo: "B",
+      fila: 2,
+      temp: 25.8,
+      status: "advertencia",
+    },
+    {
+      num: 12,
+      id: "D3",
+      pasillo: "D",
+      fila: 3,
+      temp: 27.9,
+      status: "critico",
+    },
+    {
+      num: 18,
+      id: "B5",
+      pasillo: "B",
+      fila: 5,
+      temp: 26.3,
+      status: "advertencia",
+    },
+  ];
 
-  FILAS.forEach((fila) => {
-    PASILLOS.forEach((pasillo) => {
-      num += 1;
+  return rackConfig.map((rack) => ({
+    ...rack,
 
-      let temp = 22 + Math.random() * 2.2;
-      let status = "normal";
+    label: `Rack #${String(
+      rack.num
+    ).padStart(2, "0")}`,
 
-      if (num === 6) {
-        temp = 25.8;
-        status = "advertencia";
-      }
+    pwm:
+      rack.status === "critico"
+        ? 78
+        : rack.status === "advertencia"
+          ? 55
+          : 40,
 
-      if (num === 12) {
-        temp = 27.9;
-        status = "critico";
-      }
-
-      if (num === 18) {
-        temp = 26.3;
-        status = "advertencia";
-      }
-
-      racks.push({
-        id: `${pasillo}${fila}`,
-        num,
-        label: `Rack #${String(num).padStart(2, "0")}`,
-        pasillo,
-        fila,
-        temp: Number(temp.toFixed(1)),
-        status,
-        pwm:
-          status === "critico"
-            ? 78
-            : status === "advertencia"
-              ? 55
-              : 40,
-      });
-    });
-  });
-
-  return racks;
+    humidity: 0,
+    cpu_load: 0,
+    airflow: 0,
+    power_kw: 0,
+    recorded_at: null,
+  }));
 }
 
 
@@ -133,7 +147,8 @@ function buildInitialEnergyHistory() {
       now.getTime() - i * 15 * 60000
     );
 
-    const wave = Math.sin((23 - i) / 3.5) * 12;
+    const wave =
+      Math.sin((23 - i) / 3.5) * 12;
 
     const kw =
       232 +
@@ -188,23 +203,23 @@ function buildInitialLog() {
     {
       id: 5,
       ts: now - 1000 * 60 * 60 * 5,
-      rack: 9,
+      rack: 1,
       level: "normal",
       msg: "Rack normalizado tras acción correctiva",
     },
     {
       id: 6,
       ts: now - 1000 * 60 * 60 * 26,
-      rack: 3,
+      rack: 6,
       level: "advertencia",
       msg: "Pico de consumo energético registrado",
     },
     {
       id: 7,
       ts: now - 1000 * 60 * 60 * 70,
-      rack: 21,
+      rack: 18,
       level: "critico",
-      msg: "Apagado preventivo evitado por acción de IA",
+      msg: "Acción preventiva ejecutada por IA",
     },
   ];
 }
@@ -327,9 +342,11 @@ function RackCell({ rack, onClick }) {
         background: critical
           ? color + "1E"
           : C.panelAlt,
+
         border: `1.5px solid ${
           critical ? color : C.border
         }`,
+
         borderRadius: 10,
         padding: "10px 8px",
         cursor: "pointer",
@@ -422,14 +439,17 @@ function TopTab({
         background: active
           ? C.panelAlt
           : "transparent",
+
         border: `1px solid ${
           active
             ? C.green + "55"
             : "transparent"
         }`,
+
         color: active
           ? C.green
           : C.textSecondary,
+
         borderRadius: 8,
         padding: "6px 14px",
         fontSize: 12,
@@ -477,6 +497,14 @@ export default function GreenRackAI() {
 
   const [historyFilter, setHistoryFilter] =
     useState("24h");
+
+  // ---------- Telemetría real ----------
+
+  const [telemetryLoading, setTelemetryLoading] =
+    useState(false);
+
+  const [telemetryError, setTelemetryError] =
+    useState("");
 
   // ---------- Centro de Control ----------
 
@@ -560,79 +588,251 @@ export default function GreenRackAI() {
   }, []);
 
 
-  // ---------- Live simulation ----------
+  // ============================================================
+  // TELEMETRÍA REAL DESDE POSTGRESQL
+  // ============================================================
 
-  useEffect(() => {
-    const t = setInterval(() => {
+  async function loadTelemetry() {
+    setTelemetryLoading(true);
+
+    try {
+      setTelemetryError("");
+
+      const response = await fetch(
+        "http://localhost:4000/api/telemetry",
+        {
+          cache: "no-store",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Error HTTP ${response.status}`
+        );
+      }
+
+      const data =
+        await response.json();
+
+      const telemetryRows =
+        Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : Array.isArray(data.telemetry)
+              ? data.telemetry
+              : [];
+
+      if (
+        !Array.isArray(
+          telemetryRows
+        )
+      ) {
+        throw new Error(
+          "Formato de telemetría no válido."
+        );
+      }
+
+      if (
+        telemetryRows.length === 0
+      ) {
+        setTelemetryError(
+          "No hay datos de telemetría disponibles."
+        );
+
+        return;
+      }
+
+      /*
+       * Agrupamos las mediciones por rack
+       * y tomamos la más reciente.
+       */
+
+      const latestByRack = {};
+
+      telemetryRows.forEach(
+        (row) => {
+          const rackNum =
+            Number(row.rack);
+
+          // Solo aceptamos los racks
+          // que realmente utiliza el nodo IoT.
+          if (
+            !ACTIVE_RACKS.includes(
+              rackNum
+            )
+          ) {
+            return;
+          }
+
+          const current =
+            latestByRack[
+              rackNum
+            ];
+
+          if (
+            !current ||
+            new Date(
+              row.recorded_at ||
+                row.timestamp ||
+                0
+            ) >
+              new Date(
+                current.recorded_at ||
+                  current.timestamp ||
+                  0
+              )
+          ) {
+            latestByRack[
+              rackNum
+            ] = row;
+          }
+        }
+      );
+
       setRacks((prev) =>
-        prev.map((r) => {
-          const drift =
-            (Math.random() - 0.5) * 0.4;
+        prev.map((rack) => {
+          const latest =
+            latestByRack[
+              rack.num
+            ];
 
-          const cooling =
-            (r.pwm - 50) * 0.006;
+          if (!latest) {
+            return rack;
+          }
 
-          let temp =
-            r.temp +
-            drift -
-            cooling;
-
-          temp = Math.max(
-            20,
-            Math.min(30, temp)
+          const temp = Number(
+            latest.temperature
           );
 
-          let status = "normal";
+          let status =
+            "normal";
 
-          if (temp >= 27)
-            status = "critico";
-          else if (temp >= 25.2)
-            status = "advertencia";
+          if (temp >= 27) {
+            status =
+              "critico";
+          } else if (
+            temp >= 25.2
+          ) {
+            status =
+              "advertencia";
+          }
 
           return {
-            ...r,
+            ...rack,
+
             temp: Number(
               temp.toFixed(1)
             ),
+
             status,
+
+            humidity: Number(
+              latest.humidity ?? 0
+            ),
+
+            cpu_load: Number(
+              latest.cpu_load ?? 0
+            ),
+
+            airflow: Number(
+              latest.airflow ?? 0
+            ),
+
+            power_kw: Number(
+              latest.power_kw ?? 0
+            ),
+
+            recorded_at:
+              latest.recorded_at ||
+              latest.timestamp ||
+              null,
           };
         })
       );
 
-      setEnergyHistory((prev) => {
-        const wave =
-          Math.sin(
-            Date.now() / 90000
-          ) * 10;
+      /*
+       * La tendencia energética utiliza
+       * únicamente los 4 racks activos.
+       */
 
-        const kw = Math.max(
-          200,
-          232 +
-            wave +
-            (Math.random() * 5 - 2.5)
-        );
+      const latestPowerRows =
+        ACTIVE_RACKS
+          .map(
+            (rackNum) =>
+              latestByRack[
+                rackNum
+              ]
+          )
+          .filter(Boolean);
 
-        return [
-          ...prev.slice(1),
-          {
-            time:
-              new Date().toLocaleTimeString(
-                "es-SV",
-                {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }
+      if (
+        latestPowerRows.length >
+        0
+      ) {
+        const totalPower =
+          latestPowerRows.reduce(
+            (sum, row) =>
+              sum +
+              Number(
+                row.power_kw || 0
               ),
-            kw: Number(
-              kw.toFixed(1)
-            ),
-          },
-        ];
-      });
-    }, 3500);
+            0
+          );
+
+        setEnergyHistory(
+          (prev) => [
+            ...prev.slice(1),
+            {
+              time:
+                new Date().toLocaleTimeString(
+                  "es-SV",
+                  {
+                    hour: "2-digit",
+                    minute:
+                      "2-digit",
+                  }
+                ),
+
+              kw: Number(
+                totalPower.toFixed(
+                  1
+                )
+              ),
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Error cargando telemetría:",
+        error
+      );
+
+      setTelemetryError(
+        "No se pudo obtener la telemetría real."
+      );
+    } finally {
+      setTelemetryLoading(
+        false
+      );
+    }
+  }
+
+
+  // ---------- Actualización periódica ----------
+
+  useEffect(() => {
+    loadTelemetry();
+
+    const interval =
+      setInterval(
+        loadTelemetry,
+        5000
+      );
 
     return () =>
-      clearInterval(t);
+      clearInterval(interval);
   }, []);
 
 
@@ -674,11 +874,15 @@ export default function GreenRackAI() {
   const totalKw =
     energyHistory[
       energyHistory.length - 1
-    ]?.kw ?? 245.6;
+    ]?.kw ?? 0;
 
   const pue = (
     1.02 +
-    (totalKw - 220) / 900
+    Math.max(
+      0,
+      totalKw - 220
+    ) /
+      900
   ).toFixed(2);
 
   const hotspotsMitigados = 127;
@@ -1136,6 +1340,40 @@ export default function GreenRackAI() {
       </div>
 
 
+      {/* Estado de telemetría */}
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 12,
+          fontSize: 11,
+          color: C.textSecondary,
+        }}
+      >
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 999,
+            background:
+              telemetryLoading
+                ? C.amber
+                : telemetryError
+                  ? C.red
+                  : C.green,
+          }}
+        />
+
+        {telemetryLoading
+          ? "Actualizando telemetría..."
+          : telemetryError
+            ? telemetryError
+            : "Telemetría IoT conectada · PostgreSQL"}
+      </div>
+
+
       {/* Desktop tabs */}
 
       <div
@@ -1482,7 +1720,7 @@ function Dashboard({
           value={`${totalKw.toFixed(
             1
           )} kW`}
-          sub="Tendencia estable"
+          sub="Telemetría IoT"
           pillStatus="normal"
           accent={C.green}
         />
@@ -1494,8 +1732,20 @@ function Dashboard({
             alerts.length
           }
           sub={`${criticoCount} crítica, ${advertenciaCount} advertencias`}
-          pillStatus="critico"
-          accent={C.red}
+          pillStatus={
+            criticoCount > 0
+              ? "critico"
+              : advertenciaCount > 0
+                ? "advertencia"
+                : "normal"
+          }
+          accent={
+            criticoCount > 0
+              ? C.red
+              : advertenciaCount > 0
+                ? C.amber
+                : C.green
+          }
         />
 
         <KpiCard
@@ -1551,8 +1801,11 @@ function Dashboard({
               marginBottom: 12,
             }}
           >
-            24 racks monitoreados · Haga clic para ver detalle
+            4 racks monitoreados · Datos provenientes del nodo IoT
           </div>
+
+
+          {/* Racks activos */}
 
           <div
             style={{
@@ -1564,10 +1817,10 @@ function Dashboard({
               marginBottom: 6,
             }}
           >
-            {PASILLOS.map(
-              (p) => (
+            {ACTIVE_RACKS.map(
+              (num) => (
                 <div
-                  key={p}
+                  key={num}
                   style={{
                     fontSize: 10,
                     color:
@@ -1578,11 +1831,18 @@ function Dashboard({
                       700,
                   }}
                 >
-                  PASILLO {p}
+                  RACK #
+                  {String(
+                    num
+                  ).padStart(
+                    2,
+                    "0"
+                  )}
                 </div>
               )
             )}
           </div>
+
 
           <div
             style={{
@@ -1605,6 +1865,7 @@ function Dashboard({
               )
             )}
           </div>
+
 
           <div
             style={{
@@ -1631,6 +1892,7 @@ function Dashboard({
               label="Alerta"
             />
           </div>
+
 
           <div
             style={{
@@ -1718,7 +1980,7 @@ function Dashboard({
                 marginBottom: 8,
               }}
             >
-              Últimas 6 horas · kW
+              Telemetría energética · kW
             </div>
 
             <div
@@ -1914,7 +2176,7 @@ function Dashboard({
                       >
                         {r.status ===
                         "critico"
-                          ? "Hotspot inminente — nivel medio"
+                          ? "Hotspot inminente"
                           : "Temperatura elevada"}{" "}
                         ·{" "}
                         {r.temp.toFixed(
@@ -2124,7 +2386,7 @@ function RackDetail({
                 C.textSecondary,
             }}
           >
-            Sensores IoT de 3 niveles · Actuador PWM local
+            Telemetría IoT · PostgreSQL · Actuador PWM
           </div>
         </div>
 
@@ -2133,6 +2395,149 @@ function RackDetail({
             rack.status
           }
         />
+      </div>
+
+
+      {/* Datos reales */}
+
+      <div
+        style={{
+          display:
+            "grid",
+          gridTemplateColumns:
+            "repeat(4, 1fr)",
+          gap: 10,
+          marginBottom: 14,
+        }}
+        className="grk-rack-metrics"
+      >
+        <div
+          style={{
+            background:
+              C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+            }}
+          >
+            Temperatura
+          </div>
+
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              marginTop: 5,
+            }}
+          >
+            {rack.temp.toFixed(
+              1
+            )}°C
+          </div>
+        </div>
+
+        <div
+          style={{
+            background:
+              C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+            }}
+          >
+            Humedad
+          </div>
+
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              marginTop: 5,
+            }}
+          >
+            {rack.humidity.toFixed(
+              1
+            )}%
+          </div>
+        </div>
+
+        <div
+          style={{
+            background:
+              C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+            }}
+          >
+            CPU
+          </div>
+
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              marginTop: 5,
+            }}
+          >
+            {rack.cpu_load.toFixed(
+              1
+            )}%
+          </div>
+        </div>
+
+        <div
+          style={{
+            background:
+              C.panel,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                C.textSecondary,
+            }}
+          >
+            Potencia
+          </div>
+
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              marginTop: 5,
+            }}
+          >
+            {rack.power_kw.toFixed(
+              1
+            )} kW
+          </div>
+        </div>
       </div>
 
 
@@ -2145,6 +2550,7 @@ function RackDetail({
           gap: 10,
           marginBottom: 14,
         }}
+        className="grk-rack-levels"
       >
         {levels.map(
           (l) => (
@@ -2327,6 +2733,20 @@ function RackDetail({
           </div>
         )}
       </div>
+
+
+      <style>{`
+        @media (max-width: 899px) {
+          .grk-rack-metrics {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+
+          .grk-rack-levels {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
     </div>
   );
 }
@@ -2355,6 +2775,7 @@ function Predictivo({
     async function getPrediction() {
       setLoading(true);
       setError("");
+      setPrediction(null);
 
       try {
         const response =
@@ -2366,15 +2787,7 @@ function Predictivo({
                 "Content-Type":
                   "application/json",
               },
-              body: JSON.stringify({
-                temperature:
-                  selectedRack.temp,
-                humidity: 48,
-                cpu_load: 78,
-                airflow:
-                  selectedRack.pwm,
-                power_kw: 245,
-              }),
+              body: JSON.stringify({}),
             }
           );
 
@@ -2410,13 +2823,14 @@ function Predictivo({
   }, [
     selectedRack.num,
     selectedRack.temp,
-    selectedRack.pwm,
   ]);
 
 
   const risk =
     prediction
-      ? prediction.risk_percentage
+      ? Number(
+          prediction.risk_percentage
+        )
       : 0;
 
   const riskColor =
@@ -2441,7 +2855,9 @@ function Predictivo({
           {
             min: "+15m",
             temp:
-              prediction.prediction_temperature_c,
+              Number(
+                prediction.prediction_temperature_c
+              ),
           },
         ]
       : [
@@ -2460,7 +2876,7 @@ function Predictivo({
       (a, b) =>
         b.temp - a.temp
     )
-    .slice(0, 6);
+    .slice(0, 4);
 
 
   return (
@@ -2484,7 +2900,7 @@ function Predictivo({
           marginBottom: 14,
         }}
       >
-        Predicción mediante modelos de IA a 15 minutos
+        Predicción mediante modelos de IA a 15 minutos utilizando telemetría real
       </div>
 
 
@@ -2608,7 +3024,7 @@ function Predictivo({
                 fontSize: 12,
               }}
             >
-              Ejecutando modelos XGBoost + LSTM...
+              Ejecutando modelos XGBoost + LSTM con datos reales...
             </div>
           ) : (
             <div
@@ -2738,7 +3154,7 @@ function Predictivo({
             >
               {loading
                 ? "..."
-                : `${risk}%`}
+                : `${risk.toFixed(1)}%`}
             </div>
 
             <div
@@ -2755,7 +3171,13 @@ function Predictivo({
             >
               <div
                 style={{
-                  width: `${risk}%`,
+                  width: `${Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      risk
+                    )
+                  )}%`,
                   height: "100%",
                   background:
                     riskColor,
@@ -2806,9 +3228,9 @@ function Predictivo({
                   </span>
 
                   <strong>
-                    {
+                    {Number(
                       prediction.xgboost_prediction_c
-                    }
+                    ).toFixed(2)}
                     °C
                   </strong>
                 </div>
@@ -2826,9 +3248,9 @@ function Predictivo({
                   </span>
 
                   <strong>
-                    {
+                    {Number(
                       prediction.lstm_prediction_c
-                    }
+                    ).toFixed(2)}
                     °C
                   </strong>
                 </div>
@@ -2848,9 +3270,9 @@ function Predictivo({
                   </span>
 
                   <strong>
-                    {
+                    {Number(
                       prediction.prediction_temperature_c
-                    }
+                    ).toFixed(2)}
                     °C
                   </strong>
                 </div>
@@ -2888,6 +3310,44 @@ function Predictivo({
                 {
                   prediction.recommendation
                 }
+              </div>
+            </div>
+          )}
+
+
+          {prediction && (
+            <div
+              style={{
+                borderTop: `1px solid ${C.border}`,
+                paddingTop: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  color:
+                    C.textSecondary,
+                  marginBottom: 6,
+                }}
+              >
+                Fuente de datos
+              </div>
+
+              <div
+                style={{
+                  fontSize: 12,
+                  color:
+                    C.textPrimary,
+                  lineHeight: 1.5,
+                }}
+              >
+                PostgreSQL ·{" "}
+                {prediction.telemetry_samples ??
+                  12}{" "}
+                muestras ·{" "}
+                {prediction.prediction_horizon_minutes ??
+                  15}{" "}
+                minutos
               </div>
             </div>
           )}
