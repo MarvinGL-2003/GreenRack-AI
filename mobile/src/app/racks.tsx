@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -8,39 +9,136 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { ArrowLeft, Server, Thermometer } from "lucide-react-native";
+import {
+  ArrowLeft,
+  RefreshCw,
+  Server,
+  Thermometer,
+} from "lucide-react-native";
 
-const racks = Array.from({ length: 24 }, (_, index) => {
-  const id = index + 1;
+import {
+  getTelemetry,
+  Telemetry,
+} from "../services/api";
 
-  const special: Record<number, number> = {
-    6: 25.8,
-    12: 27.9,
-    18: 26.3,
-  };
-
-  return {
-    id,
-    temperature: special[id] ?? Number((23.5 + (id % 7) * 0.25).toFixed(1)),
-    cpu: id === 12 ? 78 : id === 6 ? 61 : id === 18 ? 67 : 40 + (id % 20),
-    airflow: id === 12 ? 55 : id === 6 ? 55 : id === 18 ? 58 : 68 + (id % 8),
-    power: id === 12 ? 245 : 205 + (id % 15) * 2,
-  };
-});
+const ACTIVE_RACKS = [1, 6, 12, 18];
 
 function getStatus(temp: number) {
   if (temp >= 27) {
-    return { label: "CRÍTICO", color: "#EF4444" };
+    return {
+      label: "CRÍTICO",
+      color: "#EF4444",
+    };
   }
 
   if (temp >= 25.5) {
-    return { label: "ADVERTENCIA", color: "#F59E0B" };
+    return {
+      label: "ADVERTENCIA",
+      color: "#F59E0B",
+    };
   }
 
-  return { label: "NORMAL", color: "#22C55E" };
+  return {
+    label: "NORMAL",
+    color: "#10B981",
+  };
+}
+
+function getLatestRacks(
+  telemetry: Telemetry[]
+): Telemetry[] {
+  const latest = new Map<number, Telemetry>();
+
+  telemetry
+    .filter((item) =>
+      ACTIVE_RACKS.includes(Number(item.rack))
+    )
+    .forEach((item) => {
+      const rack = Number(item.rack);
+      const current = latest.get(rack);
+
+      if (
+        !current ||
+        new Date(item.recorded_at).getTime() >
+          new Date(current.recorded_at).getTime()
+      ) {
+        latest.set(rack, item);
+      }
+    });
+
+  return ACTIVE_RACKS
+    .map((rack) => latest.get(rack))
+    .filter(
+      (item): item is Telemetry =>
+        item !== undefined
+    );
 }
 
 export default function RacksScreen() {
+  const [racks, setRacks] = useState<Telemetry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadRacks = useCallback(
+    async (manual = false) => {
+      try {
+        if (manual) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        setError("");
+
+        const telemetry = await getTelemetry();
+
+        const latestRacks =
+          getLatestRacks(telemetry);
+
+        setRacks(latestRacks);
+      } catch (err: any) {
+        console.error(
+          "Error cargando racks:",
+          err
+        );
+
+        setError(
+          err?.response?.data?.message ||
+            "No se pudo obtener la telemetría."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    loadRacks();
+
+    const interval = setInterval(() => {
+      loadRacks();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [loadRacks]);
+
+  const normalCount = racks.filter(
+    (rack) => rack.temperature < 25.5
+  ).length;
+
+  const warningCount = racks.filter(
+    (rack) =>
+      rack.temperature >= 25.5 &&
+      rack.temperature < 27
+  ).length;
+
+  const criticalCount = racks.filter(
+    (rack) => rack.temperature >= 27
+  ).length;
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -52,109 +150,277 @@ export default function RacksScreen() {
             style={styles.back}
             onPress={() => router.back()}
           >
-            <ArrowLeft size={21} color="#F8FAFC" />
+            <ArrowLeft
+              size={21}
+              color="#F8FAFC"
+            />
           </TouchableOpacity>
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Racks</Text>
+            <Text style={styles.title}>
+              Racks
+            </Text>
+
             <Text style={styles.subtitle}>
-              24 racks monitoreados
+              {racks.length} racks monitoreados
             </Text>
           </View>
 
-          <Server size={24} color="#22C55E" />
+          <TouchableOpacity
+            style={styles.refreshButton}
+            onPress={() => loadRacks(true)}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <ActivityIndicator
+                size="small"
+                color="#10B981"
+              />
+            ) : (
+              <RefreshCw
+                size={20}
+                color="#10B981"
+              />
+            )}
+          </TouchableOpacity>
         </View>
 
         <View style={styles.summary}>
-          <View>
-            <Text style={styles.summaryNumber}>24</Text>
-            <Text style={styles.summaryLabel}>TOTAL</Text>
-          </View>
-
-          <View>
-            <Text style={[styles.summaryNumber, { color: "#22C55E" }]}>
-              {racks.filter((r) => r.temperature < 25.5).length}
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryNumber}>
+              {racks.length}
             </Text>
-            <Text style={styles.summaryLabel}>NORMALES</Text>
-          </View>
 
-          <View>
-            <Text style={[styles.summaryNumber, { color: "#F59E0B" }]}>
-              {racks.filter(
-                (r) => r.temperature >= 25.5 && r.temperature < 27
-              ).length}
+            <Text style={styles.summaryLabel}>
+              TOTAL
             </Text>
-            <Text style={styles.summaryLabel}>ALERTA</Text>
           </View>
 
-          <View>
-            <Text style={[styles.summaryNumber, { color: "#EF4444" }]}>
-              {racks.filter((r) => r.temperature >= 27).length}
-            </Text>
-            <Text style={styles.summaryLabel}>CRÍTICOS</Text>
-          </View>
-        </View>
-
-        <View style={styles.grid}>
-          {racks.map((rack) => {
-            const status = getStatus(rack.temperature);
-
-            return (
-            <TouchableOpacity
-                 key={rack.id}
-                style={styles.card}
-                activeOpacity={0.75}
-                 onPress={() =>
-                    router.push({
-                    pathname: "/rack/id",
-                    params: { id: String(rack.id) },
-                    })
-                }
+          <View style={styles.summaryItem}>
+            <Text
+              style={[
+                styles.summaryNumber,
+                { color: "#10B981" },
+              ]}
             >
-                <View style={styles.cardHeader}>
-                  <Text style={styles.rackName}>
-                    RACK {String(rack.id).padStart(2, "0")}
-                  </Text>
+              {normalCount}
+            </Text>
 
-                  <View
-                    style={[
-                      styles.dot,
-                      { backgroundColor: status.color },
-                    ]}
-                  />
-                </View>
+            <Text style={styles.summaryLabel}>
+              NORMALES
+            </Text>
+          </View>
 
-                <View style={styles.temperatureRow}>
-                  <Thermometer
-                    size={22}
-                    color={status.color}
-                  />
+          <View style={styles.summaryItem}>
+            <Text
+              style={[
+                styles.summaryNumber,
+                { color: "#F59E0B" },
+              ]}
+            >
+              {warningCount}
+            </Text>
 
-                  <Text style={styles.temperature}>
-                    {rack.temperature.toFixed(1)}°
-                  </Text>
+            <Text style={styles.summaryLabel}>
+              ALERTA
+            </Text>
+          </View>
 
-                  <Text style={styles.celsius}>C</Text>
-                </View>
+          <View style={styles.summaryItem}>
+            <Text
+              style={[
+                styles.summaryNumber,
+                { color: "#EF4444" },
+              ]}
+            >
+              {criticalCount}
+            </Text>
 
-                <View style={styles.statusRow}>
-                  <Text
-                    style={[
-                      styles.status,
-                      { color: status.color },
-                    ]}
-                  >
-                    {status.label}
-                  </Text>
-
-                  <Text style={styles.cpu}>
-                    CPU {rack.cpu}%
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+            <Text style={styles.summaryLabel}>
+              CRÍTICOS
+            </Text>
+          </View>
         </View>
+
+        {loading ? (
+          <View style={styles.centerMessage}>
+            <ActivityIndicator
+              size="large"
+              color="#10B981"
+            />
+
+            <Text style={styles.messageText}>
+              Cargando telemetría...
+            </Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>
+              Error de conexión
+            </Text>
+
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => loadRacks(true)}
+            >
+              <Text style={styles.retryText}>
+                REINTENTAR
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : racks.length === 0 ? (
+          <View style={styles.centerMessage}>
+            <Server
+              size={40}
+              color="#64748B"
+            />
+
+            <Text style={styles.messageText}>
+              No hay telemetría disponible.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {racks.map((rack) => {
+              const status = getStatus(
+                Number(rack.temperature)
+              );
+
+              return (
+                <TouchableOpacity
+                  key={rack.rack}
+                  style={styles.card}
+                  activeOpacity={0.75}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/rack/id",
+                      params: {
+                        id: String(rack.rack),
+                      },
+                    })
+                  }
+                >
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.rackName}>
+                      RACK{" "}
+                      {String(rack.rack).padStart(
+                        2,
+                        "0"
+                      )}
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.dot,
+                        {
+                          backgroundColor:
+                            status.color,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.temperatureRow}>
+                    <Thermometer
+                      size={22}
+                      color={status.color}
+                    />
+
+                    <Text style={styles.temperature}>
+                      {Number(
+                        rack.temperature
+                      ).toFixed(1)}
+                      °
+                    </Text>
+
+                    <Text style={styles.celsius}>
+                      C
+                    </Text>
+                  </View>
+
+                  <View style={styles.statusRow}>
+                    <Text
+                      style={[
+                        styles.status,
+                        {
+                          color:
+                            status.color,
+                        },
+                      ]}
+                    >
+                      {status.label}
+                    </Text>
+
+                    <Text style={styles.cpu}>
+                      CPU{" "}
+                      {Number(
+                        rack.cpu_load
+                      ).toFixed(0)}
+                      %
+                    </Text>
+                  </View>
+
+                  <View style={styles.details}>
+                    <View>
+                      <Text style={styles.detailLabel}>
+                        HUMEDAD
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.detailValue
+                        }
+                      >
+                        {Number(
+                          rack.humidity
+                        ).toFixed(1)}
+                        %
+                      </Text>
+                    </View>
+
+                    <View>
+                      <Text style={styles.detailLabel}>
+                        AIRFLOW
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.detailValue
+                        }
+                      >
+                        {Number(
+                          rack.airflow
+                        ).toFixed(1)}
+                        %
+                      </Text>
+                    </View>
+
+                    <View>
+                      <Text style={styles.detailLabel}>
+                        POTENCIA
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.detailValue
+                        }
+                      >
+                        {Number(
+                          rack.power_kw
+                        ).toFixed(1)}
+                        kW
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         <View style={{ height: 35 }} />
       </ScrollView>
@@ -190,6 +456,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  refreshButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#131B2E",
+    borderWidth: 1,
+    borderColor: "#243049",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   title: {
     color: "#F8FAFC",
     fontSize: 25,
@@ -203,14 +480,18 @@ const styles = StyleSheet.create({
   },
 
   summary: {
-    backgroundColor: "#111827",
+    backgroundColor: "#131B2E",
     borderWidth: 1,
-    borderColor: "#243047",
+    borderColor: "#243049",
     borderRadius: 16,
     padding: 15,
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 17,
+  },
+
+  summaryItem: {
+    alignItems: "center",
   },
 
   summaryNumber: {
@@ -236,10 +517,10 @@ const styles = StyleSheet.create({
 
   card: {
     width: "48.5%",
-    backgroundColor: "#111827",
+    backgroundColor: "#131B2E",
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: "#243047",
+    borderColor: "#243049",
     padding: 13,
   },
 
@@ -295,5 +576,75 @@ const styles = StyleSheet.create({
   cpu: {
     color: "#64748B",
     fontSize: 9,
+  },
+
+  details: {
+    marginTop: 15,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: "#243049",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  detailLabel: {
+    color: "#64748B",
+    fontSize: 7,
+    fontWeight: "800",
+  },
+
+  detailValue: {
+    color: "#CBD5E1",
+    fontSize: 9,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+
+  centerMessage: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 70,
+  },
+
+  messageText: {
+    color: "#64748B",
+    fontSize: 13,
+    marginTop: 14,
+  },
+
+  errorBox: {
+    backgroundColor: "#131B2E",
+    borderWidth: 1,
+    borderColor: "#7F1D1D",
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 10,
+  },
+
+  errorTitle: {
+    color: "#FCA5A5",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  errorText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    marginTop: 8,
+    lineHeight: 20,
+  },
+
+  retryButton: {
+    backgroundColor: "#10B981",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 16,
+  },
+
+  retryText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
   },
 });

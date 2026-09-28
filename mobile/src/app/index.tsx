@@ -25,48 +25,40 @@ import {
   Zap,
 } from "lucide-react-native";
 
-import { getHealth, getMetrics, AIHealth, AIMetrics } from "../services/api";
+import {
+  getHealth,
+  getMetrics,
+  getTelemetry,
+  AIHealth,
+  AIMetrics,
+  Telemetry,
+} from "../services/api";
 
 const COLORS = {
   background: "#0A0F1C",
-  card: "#111827",
-  cardLight: "#172033",
-  border: "#243047",
-  primary: "#22C55E",
-  blue: "#3B82F6",
+  card: "#131B2E",
+  cardLight: "#1A2338",
+  border: "#243049",
+  primary: "#10B981",
+  blue: "#2563EB",
   cyan: "#06B6D4",
   yellow: "#F59E0B",
   red: "#EF4444",
-  text: "#F8FAFC",
-  muted: "#94A3B8",
+  text: "#E2E8F0",
+  muted: "#64748B",
 };
 
-const racks = [
-  { id: 1, temperature: 23.8, cpu: 42, airflow: 72, power: 211 },
-  { id: 2, temperature: 24.2, cpu: 48, airflow: 70, power: 218 },
-  { id: 3, temperature: 23.5, cpu: 39, airflow: 74, power: 205 },
-  { id: 4, temperature: 24.7, cpu: 53, airflow: 68, power: 225 },
-  { id: 5, temperature: 25.1, cpu: 58, airflow: 63, power: 231 },
-  { id: 6, temperature: 25.8, cpu: 61, airflow: 55, power: 239 },
-  { id: 7, temperature: 23.9, cpu: 45, airflow: 71, power: 214 },
-  { id: 8, temperature: 24.4, cpu: 50, airflow: 69, power: 221 },
-  { id: 9, temperature: 24.0, cpu: 43, airflow: 73, power: 209 },
-  { id: 10, temperature: 24.8, cpu: 55, airflow: 66, power: 228 },
-  { id: 11, temperature: 25.2, cpu: 59, airflow: 62, power: 235 },
-  { id: 12, temperature: 27.9, cpu: 78, airflow: 55, power: 245 },
-  { id: 13, temperature: 23.7, cpu: 41, airflow: 75, power: 207 },
-  { id: 14, temperature: 24.1, cpu: 46, airflow: 71, power: 216 },
-  { id: 15, temperature: 24.6, cpu: 51, airflow: 68, power: 224 },
-  { id: 16, temperature: 24.9, cpu: 56, airflow: 65, power: 230 },
-  { id: 17, temperature: 25.0, cpu: 57, airflow: 64, power: 233 },
-  { id: 18, temperature: 26.3, cpu: 67, airflow: 58, power: 241 },
-  { id: 19, temperature: 23.6, cpu: 40, airflow: 74, power: 206 },
-  { id: 20, temperature: 24.3, cpu: 47, airflow: 70, power: 219 },
-  { id: 21, temperature: 24.5, cpu: 49, airflow: 69, power: 220 },
-  { id: 22, temperature: 24.9, cpu: 54, airflow: 66, power: 229 },
-  { id: 23, temperature: 25.3, cpu: 60, airflow: 62, power: 237 },
-  { id: 24, temperature: 24.0, cpu: 44, airflow: 72, power: 212 },
-];
+const ACTIVE_RACKS = [1, 6, 12, 18];
+
+type RackData = {
+  id: number;
+  temperature: number;
+  humidity: number;
+  cpu: number;
+  airflow: number;
+  power: number;
+  recorded_at: string;
+};
 
 function getStatus(temperature: number) {
   if (temperature >= 27) {
@@ -87,6 +79,45 @@ function getStatus(temperature: number) {
     label: "Normal",
     color: COLORS.primary,
   };
+}
+
+function getLatestRacks(telemetry: Telemetry[]): RackData[] {
+  const latestByRack = new Map<number, Telemetry>();
+
+  telemetry.forEach((item) => {
+    if (!ACTIVE_RACKS.includes(Number(item.rack))) {
+      return;
+    }
+
+    const rackNumber = Number(item.rack);
+    const current = latestByRack.get(rackNumber);
+
+    if (
+      !current ||
+      new Date(item.recorded_at).getTime() >
+        new Date(current.recorded_at).getTime()
+    ) {
+      latestByRack.set(rackNumber, item);
+    }
+  });
+
+  return ACTIVE_RACKS.map((rackNumber) => {
+    const item = latestByRack.get(rackNumber);
+
+    if (!item) {
+      return null;
+    }
+
+    return {
+      id: rackNumber,
+      temperature: Number(item.temperature),
+      humidity: Number(item.humidity),
+      cpu: Number(item.cpu_load),
+      airflow: Number(item.airflow),
+      power: Number(item.power_kw),
+      recorded_at: item.recorded_at,
+    };
+  }).filter(Boolean) as RackData[];
 }
 
 function MetricCard({
@@ -113,37 +144,125 @@ function MetricCard({
   );
 }
 
+function RackCard({ rack }: { rack: RackData }) {
+  const status = getStatus(rack.temperature);
+
+  return (
+    <TouchableOpacity
+      style={styles.rackCard}
+      activeOpacity={0.8}
+      onPress={() =>
+        router.push({
+          pathname: "/rack/id",
+          params: {
+            id: String(rack.id),
+          },
+        })
+      }
+    >
+      <View style={styles.rackHeader}>
+        <View>
+          <Text style={styles.rackLabel}>
+            Rack #{String(rack.id).padStart(2, "0")}
+          </Text>
+
+          <Text style={styles.rackTemperature}>
+            {rack.temperature.toFixed(1)}°C
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.statusBadge,
+            {
+              backgroundColor: `${status.color}1F`,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+              {
+                backgroundColor: status.color,
+              },
+            ]}
+          />
+
+          <Text
+            style={[
+              styles.statusText,
+              {
+                color: status.color,
+              },
+            ]}
+          >
+            {status.label}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.rackMetrics}>
+        <View style={styles.rackMetric}>
+          <Cpu size={15} color={COLORS.blue} />
+          <Text style={styles.rackMetricValue}>
+            {rack.cpu.toFixed(1)}%
+          </Text>
+          <Text style={styles.rackMetricLabel}>CPU</Text>
+        </View>
+
+        <View style={styles.rackMetric}>
+          <Activity size={15} color={COLORS.cyan} />
+          <Text style={styles.rackMetricValue}>
+            {rack.airflow.toFixed(1)}
+          </Text>
+          <Text style={styles.rackMetricLabel}>Airflow</Text>
+        </View>
+
+        <View style={styles.rackMetric}>
+          <Zap size={15} color={COLORS.yellow} />
+          <Text style={styles.rackMetricValue}>
+            {rack.power.toFixed(1)}
+          </Text>
+          <Text style={styles.rackMetricLabel}>kW</Text>
+        </View>
+      </View>
+
+      <View style={styles.rackFooter}>
+        <Text style={styles.humidityText}>
+          Humedad {rack.humidity.toFixed(1)}%
+        </Text>
+
+        <ArrowRight size={17} color={COLORS.muted} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function Dashboard() {
+  const [telemetry, setTelemetry] = useState<RackData[]>([]);
   const [health, setHealth] = useState<AIHealth | null>(null);
   const [metrics, setMetrics] = useState<AIMetrics | null>(null);
+
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const criticalRacks = racks.filter(
-    (rack) => rack.temperature >= 27
-  );
-
-  const warningRacks = racks.filter(
-    (rack) => rack.temperature >= 25.5 && rack.temperature < 27
-  );
-
-  const averageTemperature =
-    racks.reduce((sum, rack) => sum + rack.temperature, 0) /
-    racks.length;
-
   const loadData = useCallback(async () => {
     try {
-      const [healthData, metricsData] = await Promise.all([
-        getHealth(),
-        getMetrics(),
-      ]);
+      const [telemetryData, healthData, metricsData] =
+        await Promise.all([
+          getTelemetry(),
+          getHealth(),
+          getMetrics(),
+        ]);
 
+      setTelemetry(getLatestRacks(telemetryData));
       setHealth(healthData);
       setMetrics(metricsData);
     } catch (error) {
-      console.log("Error conectando con GreenRack:", error);
-      setHealth(null);
-      setMetrics(null);
+      console.log(
+        "Error conectando con GreenRack:",
+        error
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -153,7 +272,10 @@ export default function Dashboard() {
   useEffect(() => {
     loadData();
 
-    const interval = setInterval(loadData, 15000);
+    const interval = setInterval(
+      loadData,
+      5000
+    );
 
     return () => clearInterval(interval);
   }, [loadData]);
@@ -164,6 +286,29 @@ export default function Dashboard() {
   };
 
   const connected = health?.status === "ok";
+
+  const criticalRacks = telemetry.filter(
+    (rack) => rack.temperature >= 27
+  );
+
+  const warningRacks = telemetry.filter(
+    (rack) =>
+      rack.temperature >= 25.5 &&
+      rack.temperature < 27
+  );
+
+  const averageTemperature =
+    telemetry.length > 0
+      ? telemetry.reduce(
+          (sum, rack) => sum + rack.temperature,
+          0
+        ) / telemetry.length
+      : 0;
+
+  const totalPower = telemetry.reduce(
+    (sum, rack) => sum + rack.power,
+    0
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -184,13 +329,20 @@ export default function Dashboard() {
           <View>
             <View style={styles.brandRow}>
               <View style={styles.logo}>
-                <Activity size={22} color={COLORS.primary} />
+                <Activity
+                  size={22}
+                  color={COLORS.primary}
+                />
               </View>
 
-              <Text style={styles.brand}>GreenRack</Text>
+              <Text style={styles.brand}>
+                GreenRack AI
+              </Text>
             </View>
 
-            <Text style={styles.title}>Centro de control</Text>
+            <Text style={styles.title}>
+              Centro de control
+            </Text>
 
             <Text style={styles.subtitle}>
               Monitoreo inteligente del data center
@@ -202,15 +354,21 @@ export default function Dashboard() {
               styles.connection,
               {
                 borderColor: connected
-                  ? "rgba(34,197,94,0.35)"
-                  : "rgba(239,68,68,0.35)",
+                  ? `${COLORS.primary}59`
+                  : `${COLORS.red}59`,
               },
             ]}
           >
             {connected ? (
-              <Wifi size={17} color={COLORS.primary} />
+              <Wifi
+                size={17}
+                color={COLORS.primary}
+              />
             ) : (
-              <WifiOff size={17} color={COLORS.red} />
+              <WifiOff
+                size={17}
+                color={COLORS.red}
+              />
             )}
 
             <Text
@@ -232,28 +390,45 @@ export default function Dashboard() {
 
         <View style={styles.systemCard}>
           <View style={styles.systemLeft}>
-            <View style={styles.onlineDot} />
+            <View
+              style={[
+                styles.onlineDot,
+                {
+                  backgroundColor: connected
+                    ? COLORS.primary
+                    : COLORS.red,
+                },
+              ]}
+            />
 
             <View>
               <Text style={styles.systemTitle}>
-                Sistema operativo
+                {connected
+                  ? "Sistema operativo"
+                  : "Sistema sin conexión"}
               </Text>
 
               <Text style={styles.systemSubtitle}>
-                Backend + Servicio IA
+                MQTT + Backend + PostgreSQL + IA
               </Text>
             </View>
           </View>
 
           <CheckCircle2
             size={26}
-            color={connected ? COLORS.primary : COLORS.red}
+            color={
+              connected
+                ? COLORS.primary
+                : COLORS.red
+            }
           />
         </View>
 
-        {/* METRICS */}
+        {/* SUMMARY */}
 
-        <Text style={styles.sectionTitle}>Resumen del sistema</Text>
+        <Text style={styles.sectionTitle}>
+          Resumen del sistema
+        </Text>
 
         <View style={styles.metricsGrid}>
           <MetricCard
@@ -264,7 +439,11 @@ export default function Dashboard() {
               />
             }
             title="Temperatura"
-            value={`${averageTemperature.toFixed(1)}°C`}
+            value={
+              telemetry.length > 0
+                ? `${averageTemperature.toFixed(1)}°C`
+                : "--"
+            }
             subtitle="Promedio de racks"
           />
 
@@ -276,7 +455,7 @@ export default function Dashboard() {
               />
             }
             title="Racks"
-            value="24"
+            value={String(telemetry.length)}
             subtitle="Monitoreados"
           />
 
@@ -288,7 +467,9 @@ export default function Dashboard() {
               />
             }
             title="Críticos"
-            value={String(criticalRacks.length)}
+            value={String(
+              criticalRacks.length
+            )}
             subtitle="Requieren atención"
           />
 
@@ -300,10 +481,72 @@ export default function Dashboard() {
               />
             }
             title="Advertencias"
-            value={String(warningRacks.length)}
+            value={String(
+              warningRacks.length
+            )}
             subtitle="Bajo observación"
           />
         </View>
+
+        {/* RACKS */}
+
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              Racks monitoreados
+            </Text>
+
+            <Text style={styles.sectionSubtitle}>
+              Telemetría IoT en tiempo real
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() =>
+              router.push("/racks")
+            }
+          >
+            <Text style={styles.viewAll}>
+              Ver todos
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading && telemetry.length === 0 ? (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator
+              size="small"
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.loadingText}>
+              Cargando telemetría...
+            </Text>
+          </View>
+        ) : telemetry.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <WifiOff
+              size={28}
+              color={COLORS.muted}
+            />
+
+            <Text style={styles.emptyTitle}>
+              Sin telemetría
+            </Text>
+
+            <Text style={styles.emptyText}>
+              No se encontraron datos de los
+              racks monitoreados.
+            </Text>
+          </View>
+        ) : (
+          telemetry.map((rack) => (
+            <RackCard
+              key={rack.id}
+              rack={rack}
+            />
+          ))
+        )}
 
         {/* AI */}
 
@@ -314,7 +557,10 @@ export default function Dashboard() {
         <View style={styles.aiCard}>
           <View style={styles.aiHeader}>
             <View style={styles.aiIcon}>
-              <Brain size={24} color={COLORS.primary} />
+              <Brain
+                size={24}
+                color={COLORS.primary}
+              />
             </View>
 
             <View style={{ flex: 1 }}>
@@ -338,8 +584,8 @@ export default function Dashboard() {
                   styles.aiBadge,
                   {
                     backgroundColor: connected
-                      ? "rgba(34,197,94,0.12)"
-                      : "rgba(239,68,68,0.12)",
+                      ? `${COLORS.primary}1F`
+                      : `${COLORS.red}1F`,
                   },
                 ]}
               >
@@ -352,7 +598,9 @@ export default function Dashboard() {
                     fontWeight: "700",
                   }}
                 >
-                  {connected ? "ACTIVA" : "SIN CONEXIÓN"}
+                  {connected
+                    ? "ACTIVA"
+                    : "SIN CONEXIÓN"}
                 </Text>
               </View>
             )}
@@ -360,8 +608,14 @@ export default function Dashboard() {
 
           <View style={styles.modelRow}>
             <View style={styles.model}>
-              <Cpu size={17} color={COLORS.blue} />
-              <Text style={styles.modelName}>XGBoost</Text>
+              <Cpu
+                size={17}
+                color={COLORS.blue}
+              />
+
+              <Text style={styles.modelName}>
+                XGBoost
+              </Text>
 
               <Text style={styles.modelValue}>
                 {metrics
@@ -373,8 +627,14 @@ export default function Dashboard() {
             </View>
 
             <View style={styles.model}>
-              <Brain size={17} color={COLORS.primary} />
-              <Text style={styles.modelName}>LSTM</Text>
+              <Brain
+                size={17}
+                color={COLORS.primary}
+              />
+
+              <Text style={styles.modelName}>
+                LSTM
+              </Text>
 
               <Text style={styles.modelValue}>
                 {metrics
@@ -386,16 +646,63 @@ export default function Dashboard() {
             </View>
           </View>
 
+          <View style={styles.aiInfo}>
+            <Text style={styles.aiInfoText}>
+              Horizonte de predicción
+            </Text>
+
+            <Text style={styles.aiInfoValue}>
+              {metrics?.metrics
+                .prediction_horizon_minutes ??
+                15}{" "}
+              minutos
+            </Text>
+          </View>
+
           <TouchableOpacity
             style={styles.aiButton}
-            onPress={() => router.push("/predictive")}
+            onPress={() =>
+              router.push("/predictive")
+            }
           >
             <Text style={styles.aiButtonText}>
               Abrir centro predictivo
             </Text>
 
-            <ArrowRight size={18} color="#FFFFFF" />
+            <ArrowRight
+              size={18}
+              color="#FFFFFF"
+            />
           </TouchableOpacity>
+        </View>
+
+        {/* ENERGY */}
+
+        <Text style={styles.sectionTitle}>
+          Consumo energético
+        </Text>
+
+        <View style={styles.energyCard}>
+          <View style={styles.energyIcon}>
+            <Zap
+              size={22}
+              color={COLORS.yellow}
+            />
+          </View>
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.energyTitle}>
+              Potencia actual
+            </Text>
+
+            <Text style={styles.energySubtitle}>
+              Suma de los racks monitoreados
+            </Text>
+          </View>
+
+          <Text style={styles.energyValue}>
+            {totalPower.toFixed(1)} kW
+          </Text>
         </View>
 
         {/* ALERTS */}
@@ -404,87 +711,45 @@ export default function Dashboard() {
           Atención requerida
         </Text>
 
-        {criticalRacks.map((rack) => {
-          const status = getStatus(rack.temperature);
-
-          return (
-         <TouchableOpacity
-  key={rack.id}
-  style={styles.alertCard}
-  onPress={() =>
-    router.push({
-      pathname: "/rack/id",
-      params: { id: String(rack.id) },
-    })
-  }
->
-              <View
-                style={[
-                  styles.alertIcon,
-                  {
-                    backgroundColor:
-                      "rgba(239,68,68,0.12)",
-                  },
-                ]}
-              >
-                <AlertTriangle
-                  size={20}
-                  color={status.color}
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.alertTitle}>
-                  Rack {rack.id} · {status.label}
-                </Text>
-
-                <Text style={styles.alertSubtitle}>
-                  Temperatura {rack.temperature.toFixed(1)}°C
-                  · CPU {rack.cpu}%
-                </Text>
-              </View>
-
-              <ArrowRight
-                size={18}
-                color={COLORS.muted}
-              />
-            </TouchableOpacity>
-          );
-        })}
-
-        {warningRacks.slice(0, 2).map((rack) => (
-        <TouchableOpacity
-  key={rack.id}
-  style={styles.alertCard}
-  onPress={() =>
-    router.push({
-      pathname: "/rack/id",
-      params: { id: String(rack.id) },
-    })
-  }
->
+        {criticalRacks.map((rack) => (
+          <TouchableOpacity
+            key={`critical-${rack.id}`}
+            style={styles.alertCard}
+            onPress={() =>
+              router.push({
+                pathname: "/rack/id",
+                params: {
+                  id: String(rack.id),
+                },
+              })
+            }
+          >
             <View
               style={[
                 styles.alertIcon,
                 {
                   backgroundColor:
-                    "rgba(245,158,11,0.12)",
+                    `${COLORS.red}1F`,
                 },
               ]}
             >
               <AlertTriangle
                 size={20}
-                color={COLORS.yellow}
+                color={COLORS.red}
               />
             </View>
 
             <View style={{ flex: 1 }}>
               <Text style={styles.alertTitle}>
-                Rack {rack.id} · Advertencia
+                Rack #{String(rack.id).padStart(
+                  2,
+                  "0"
+                )} · Crítico
               </Text>
 
               <Text style={styles.alertSubtitle}>
-                Temperatura {rack.temperature.toFixed(1)}°C
+                {rack.temperature.toFixed(1)}°C ·
+                CPU {rack.cpu.toFixed(1)}%
               </Text>
             </View>
 
@@ -495,6 +760,58 @@ export default function Dashboard() {
           </TouchableOpacity>
         ))}
 
+        {warningRacks
+          .slice(0, 2)
+          .map((rack) => (
+            <TouchableOpacity
+              key={`warning-${rack.id}`}
+              style={styles.alertCard}
+              onPress={() =>
+                router.push({
+                  pathname: "/rack/id",
+                  params: {
+                    id: String(rack.id),
+                  },
+                })
+              }
+            >
+              <View
+                style={[
+                  styles.alertIcon,
+                  {
+                    backgroundColor:
+                      `${COLORS.yellow}1F`,
+                  },
+                ]}
+              >
+                <AlertTriangle
+                  size={20}
+                  color={COLORS.yellow}
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.alertTitle}>
+                  Rack #
+                  {String(rack.id).padStart(
+                    2,
+                    "0"
+                  )}{" "}
+                  · Advertencia
+                </Text>
+
+                <Text style={styles.alertSubtitle}>
+                  {rack.temperature.toFixed(1)}°C
+                </Text>
+              </View>
+
+              <ArrowRight
+                size={18}
+                color={COLORS.muted}
+              />
+            </TouchableOpacity>
+          ))}
+
         {/* QUICK ACTIONS */}
 
         <Text style={styles.sectionTitle}>
@@ -504,37 +821,62 @@ export default function Dashboard() {
         <View style={styles.actionsGrid}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/racks")}
+            onPress={() =>
+              router.push("/racks")
+            }
           >
-            <Server size={22} color={COLORS.blue} />
-            <Text style={styles.actionText}>Ver racks</Text>
+            <Server
+              size={22}
+              color={COLORS.blue}
+            />
+
+            <Text style={styles.actionText}>
+              Ver racks
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/predictive")}
+            onPress={() =>
+              router.push("/predictive")
+            }
           >
-            <Brain size={22} color={COLORS.primary} />
-            <Text style={styles.actionText}>Predicción</Text>
+            <Brain
+              size={22}
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.actionText}>
+              Predicción
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/alerts")}
+            onPress={() =>
+              router.push("/alerts")
+            }
           >
             <AlertTriangle
               size={22}
               color={COLORS.yellow}
             />
-            <Text style={styles.actionText}>Alertas</Text>
+
+            <Text style={styles.actionText}>
+              Alertas
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-          >
-            <Zap size={22} color={COLORS.cyan} />
-            <Text style={styles.actionText}>Energía</Text>
-          </TouchableOpacity>
+          <View style={styles.actionButton}>
+            <Zap
+              size={22}
+              color={COLORS.cyan}
+            />
+
+            <Text style={styles.actionText}>
+              Energía
+            </Text>
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
@@ -572,7 +914,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: "rgba(34,197,94,0.12)",
+    backgroundColor: `${COLORS.primary}1F`,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -632,7 +974,6 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: COLORS.primary,
   },
 
   systemTitle: {
@@ -652,6 +993,26 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "800",
     marginTop: 25,
+    marginBottom: 12,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+
+  sectionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginTop: -7,
+    marginBottom: 12,
+  },
+
+  viewAll: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: "700",
     marginBottom: 12,
   },
 
@@ -698,6 +1059,134 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
+  rackCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 15,
+    marginBottom: 10,
+  },
+
+  rackHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+
+  rackLabel: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  rackTemperature: {
+    color: COLORS.text,
+    fontSize: 26,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+
+  statusText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  rackMetrics: {
+    flexDirection: "row",
+    marginTop: 15,
+    gap: 8,
+  },
+
+  rackMetric: {
+    flex: 1,
+    backgroundColor: COLORS.cardLight,
+    borderRadius: 11,
+    padding: 10,
+  },
+
+  rackMetricValue: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 5,
+  },
+
+  rackMetricLabel: {
+    color: COLORS.muted,
+    fontSize: 9,
+    marginTop: 2,
+  },
+
+  rackFooter: {
+    marginTop: 12,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  humidityText: {
+    color: COLORS.muted,
+    fontSize: 10,
+  },
+
+  loadingCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 25,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginTop: 10,
+  },
+
+  emptyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 25,
+    alignItems: "center",
+  },
+
+  emptyTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+
+  emptyText: {
+    color: COLORS.muted,
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 5,
+  },
+
   aiCard: {
     backgroundColor: COLORS.card,
     borderRadius: 18,
@@ -716,7 +1205,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: "rgba(34,197,94,0.12)",
+    backgroundColor: `${COLORS.primary}1F`,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -765,6 +1254,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
+  aiInfo: {
+    marginTop: 10,
+    padding: 11,
+    borderRadius: 10,
+    backgroundColor: COLORS.cardLight,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  aiInfoText: {
+    color: COLORS.muted,
+    fontSize: 10,
+  },
+
+  aiInfoValue: {
+    color: COLORS.text,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+
   aiButton: {
     marginTop: 13,
     backgroundColor: COLORS.primary,
@@ -779,6 +1288,44 @@ const styles = StyleSheet.create({
   aiButtonText: {
     color: "#FFFFFF",
     fontSize: 13,
+    fontWeight: "800",
+  },
+
+  energyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  energyIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    backgroundColor: `${COLORS.yellow}1F`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  energyTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  energySubtitle: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  energyValue: {
+    color: COLORS.text,
+    fontSize: 16,
     fontWeight: "800",
   },
 

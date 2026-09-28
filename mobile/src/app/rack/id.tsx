@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -10,83 +10,221 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import {
-  Activity,
   ArrowLeft,
-  Brain,
+  Bot,
   Cpu,
+  Droplets,
   Gauge,
   Thermometer,
   Wind,
   Zap,
 } from "lucide-react-native";
 
-import { predictRack, PredictionResponse } from "../../services/api";
+import {
+  getTelemetry,
+  predictRack,
+  Telemetry,
+  PredictionResponse,
+} from "../../services/api";
+
+function getStatus(temp: number) {
+  if (temp >= 27) {
+    return {
+      label: "CRÍTICO",
+      color: "#EF4444",
+      background: "rgba(239, 68, 68, 0.12)",
+    };
+  }
+
+  if (temp >= 25.5) {
+    return {
+      label: "ADVERTENCIA",
+      color: "#F59E0B",
+      background: "rgba(245, 158, 11, 0.12)",
+    };
+  }
+
+  return {
+    label: "NORMAL",
+    color: "#10B981",
+    background: "rgba(16, 185, 129, 0.12)",
+  };
+}
 
 export default function RackDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{
+    id: string;
+  }>();
+
   const rackId = Number(id);
 
-  const isRack12 = rackId === 12;
-  const isRack6 = rackId === 6;
-  const isRack18 = rackId === 18;
-
-  const temperature = isRack12
-    ? 27.9
-    : isRack6
-      ? 25.8
-      : isRack18
-        ? 26.3
-        : 24.2;
-
-  const cpu = isRack12
-    ? 78
-    : isRack6
-      ? 61
-      : isRack18
-        ? 67
-        : 45;
-
-  const airflow = isRack12
-    ? 55
-    : isRack6
-      ? 55
-      : isRack18
-        ? 58
-        : 70;
-
-  const power = isRack12 ? 245 : 220;
+  const [telemetry, setTelemetry] =
+    useState<Telemetry | null>(null);
 
   const [prediction, setPrediction] =
     useState<PredictionResponse | null>(null);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [predicting, setPredicting] = useState(false);
+  const [error, setError] = useState("");
 
-  const analyze = async () => {
-    setLoading(true);
-
+  const loadRack = useCallback(async () => {
     try {
-      const result = await predictRack(rackId, {
-        temperature,
-        humidity: 48,
-        cpu_load: cpu,
-        airflow,
-        power_kw: power,
-      });
+      setError("");
 
-      setPrediction(result);
-    } catch (error) {
-      console.log("Error ejecutando predicción:", error);
+      const data = await getTelemetry();
+
+      const rackTelemetry = data
+        .filter(
+          (item) => Number(item.rack) === rackId
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.recorded_at).getTime() -
+            new Date(a.recorded_at).getTime()
+        );
+
+      if (rackTelemetry.length === 0) {
+        setTelemetry(null);
+        setError(
+          "No existe telemetría para este rack."
+        );
+        return;
+      }
+
+      setTelemetry(rackTelemetry[0]);
+    } catch (err: any) {
+      console.error(
+        "Error cargando rack:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+          "No se pudo obtener la telemetría."
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [rackId]);
 
-  const status =
-    temperature >= 27
-      ? { label: "CRÍTICO", color: "#EF4444" }
-      : temperature >= 25.5
-        ? { label: "ADVERTENCIA", color: "#F59E0B" }
-        : { label: "NORMAL", color: "#22C55E" };
+  const runPrediction = useCallback(
+    async (current: Telemetry) => {
+      try {
+        setPredicting(true);
+
+        const result = await predictRack(
+          rackId,
+          {
+            temperature: Number(
+              current.temperature
+            ),
+            humidity: Number(
+              current.humidity
+            ),
+            cpu_load: Number(
+              current.cpu_load
+            ),
+            airflow: Number(
+              current.airflow
+            ),
+            power_kw: Number(
+              current.power_kw
+            ),
+          }
+        );
+
+        setPrediction(result);
+      } catch (err: any) {
+        console.error(
+          "Error en predicción:",
+          err
+        );
+      } finally {
+        setPredicting(false);
+      }
+    },
+    [rackId]
+  );
+
+  useEffect(() => {
+    loadRack();
+  }, [loadRack]);
+
+  useEffect(() => {
+    if (!telemetry) {
+      return;
+    }
+
+    runPrediction(telemetry);
+  }, [telemetry, runPrediction]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadRack();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [loadRack]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.center}>
+          <ActivityIndicator
+            size="large"
+            color="#10B981"
+          />
+
+          <Text style={styles.loadingText}>
+            Cargando rack...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!telemetry) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.center}>
+          <Text style={styles.errorTitle}>
+            No se pudo cargar el rack
+          </Text>
+
+          <Text style={styles.errorText}>
+            {error ||
+              "No existe información disponible."}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={loadRack}
+          >
+            <Text style={styles.retryText}>
+              REINTENTAR
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const temperature = Number(
+    telemetry.temperature
+  );
+
+  const status = getStatus(temperature);
+
+  const risk =
+    prediction?.risk_percentage ?? 0;
+
+  const riskColor =
+    risk >= 70
+      ? "#EF4444"
+      : risk >= 40
+        ? "#F59E0B"
+        : "#10B981";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -99,56 +237,48 @@ export default function RackDetailScreen() {
             style={styles.back}
             onPress={() => router.back()}
           >
-            <ArrowLeft size={21} color="#F8FAFC" />
+            <ArrowLeft
+              size={21}
+              color="#F8FAFC"
+            />
           </TouchableOpacity>
 
-          <View>
-            <Text style={styles.title}>
-              Rack {String(rackId).padStart(2, "0")}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>
+              Rack #
+              {String(rackId).padStart(2, "0")}
             </Text>
 
-            <Text style={styles.subtitle}>
-              Detalle y análisis térmico
+            <Text style={styles.headerSubtitle}>
+              Monitoreo en tiempo real
             </Text>
           </View>
-        </View>
-
-        <View
-          style={[
-            styles.mainTemperature,
-            { borderColor: status.color },
-          ]}
-        >
-          <View style={styles.temperatureIcon}>
-            <Thermometer
-              size={30}
-              color={status.color}
-            />
-          </View>
-
-          <Text style={styles.temperature}>
-            {temperature.toFixed(1)}°C
-          </Text>
 
           <View
             style={[
               styles.statusBadge,
               {
-                backgroundColor: `${status.color}18`,
+                backgroundColor:
+                  status.background,
               },
             ]}
           >
             <View
               style={[
                 styles.statusDot,
-                { backgroundColor: status.color },
+                {
+                  backgroundColor:
+                    status.color,
+                },
               ]}
             />
 
             <Text
               style={[
-                styles.statusText,
-                { color: status.color },
+                styles.statusBadgeText,
+                {
+                  color: status.color,
+                },
               ]}
             >
               {status.label}
@@ -156,151 +286,235 @@ export default function RackDetailScreen() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>
-          Telemetría actual
-        </Text>
+        <View
+          style={[
+            styles.temperatureCard,
+            {
+              borderColor:
+                status.color,
+            },
+          ]}
+        >
+          <Text style={styles.temperatureLabel}>
+            TEMPERATURA ACTUAL
+          </Text>
+
+          <View style={styles.temperatureMain}>
+            <Thermometer
+              size={32}
+              color={status.color}
+            />
+
+            <Text style={styles.temperatureValue}>
+              {temperature.toFixed(1)}
+            </Text>
+
+            <Text style={styles.temperatureUnit}>
+              °C
+            </Text>
+          </View>
+
+          <Text style={styles.updated}>
+            Última lectura:{" "}
+            {new Date(
+              telemetry.recorded_at
+            ).toLocaleTimeString()}
+          </Text>
+        </View>
 
         <View style={styles.metricsGrid}>
-          <Metric
-            icon={<Activity size={20} color="#06B6D4" />}
-            label="Temperatura"
-            value={`${temperature} °C`}
+          <MetricCard
+            icon={
+              <Cpu
+                size={20}
+                color="#2563EB"
+              />
+            }
+            label="CPU"
+            value={`${Number(
+              telemetry.cpu_load
+            ).toFixed(1)}%`}
           />
 
-          <Metric
-            icon={<Gauge size={20} color="#3B82F6" />}
-            label="CPU Load"
-            value={`${cpu}%`}
+          <MetricCard
+            icon={
+              <Droplets
+                size={20}
+                color="#38BDF8"
+              />
+            }
+            label="HUMEDAD"
+            value={`${Number(
+              telemetry.humidity
+            ).toFixed(1)}%`}
           />
 
-          <Metric
-            icon={<Wind size={20} color="#22C55E" />}
-            label="Airflow"
-            value={`${airflow}%`}
+          <MetricCard
+            icon={
+              <Wind
+                size={20}
+                color="#10B981"
+              />
+            }
+            label="AIRFLOW"
+            value={`${Number(
+              telemetry.airflow
+            ).toFixed(1)}%`}
           />
 
-          <Metric
-            icon={<Zap size={20} color="#F59E0B" />}
-            label="Potencia"
-            value={`${power} kW`}
+          <MetricCard
+            icon={
+              <Zap
+                size={20}
+                color="#F59E0B"
+              />
+            }
+            label="POTENCIA"
+            value={`${Number(
+              telemetry.power_kw
+            ).toFixed(1)} kW`}
           />
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Bot
+            size={21}
+            color="#10B981"
+          />
+
+          <Text style={styles.sectionTitle}>
+            ANÁLISIS PREDICTIVO
+          </Text>
         </View>
 
         <View style={styles.aiCard}>
-          <View style={styles.aiHeader}>
-            <View style={styles.aiIcon}>
-              <Brain size={24} color="#22C55E" />
-            </View>
+          {predicting ? (
+            <View style={styles.aiLoading}>
+              <ActivityIndicator
+                size="small"
+                color="#10B981"
+              />
 
-            <View>
-              <Text style={styles.aiTitle}>
-                Análisis predictivo
-              </Text>
-
-              <Text style={styles.aiSubtitle}>
-                XGBoost + LSTM
+              <Text style={styles.aiLoadingText}>
+                Ejecutando XGBoost + LSTM...
               </Text>
             </View>
-          </View>
-
-          <Text style={styles.aiDescription}>
-            Analiza las condiciones actuales del rack y
-            estima su temperatura para los próximos 15 minutos.
-          </Text>
-
-          <TouchableOpacity
-            style={styles.analyzeButton}
-            onPress={analyze}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Brain size={19} color="#FFFFFF" />
-
-                <Text style={styles.analyzeText}>
-                  Analizar con IA
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {prediction && (
-          <>
-            <Text style={styles.sectionTitle}>
-              Resultado de IA
-            </Text>
-
-            <View style={styles.predictionCard}>
-              <Text style={styles.predictionLabel}>
-                PREDICCIÓN A {prediction.prediction_horizon_minutes} MIN
-              </Text>
-
-              <Text style={styles.predictionTemperature}>
-                {prediction.prediction_temperature_c.toFixed(2)}°C
-              </Text>
-
-              <View style={styles.modelResult}>
-                <View>
-                  <Text style={styles.modelName}>
-                    XGBoost
+          ) : prediction ? (
+            <>
+              <View style={styles.modelRow}>
+                <View style={styles.model}>
+                  <Text style={styles.modelLabel}>
+                    XGBOOST
                   </Text>
 
                   <Text style={styles.modelValue}>
-                    {prediction.xgboost_prediction_c.toFixed(2)}°C
+                    {Number(
+                      prediction.xgboost_prediction_c
+                    ).toFixed(2)}
+                    °C
                   </Text>
                 </View>
 
-                <Cpu size={21} color="#3B82F6" />
-
-                <View style={{ marginLeft: "auto" }}>
-                  <Text style={styles.modelName}>
+                <View style={styles.model}>
+                  <Text style={styles.modelLabel}>
                     LSTM
                   </Text>
 
                   <Text style={styles.modelValue}>
-                    {prediction.lstm_prediction_c.toFixed(2)}°C
+                    {Number(
+                      prediction.lstm_prediction_c
+                    ).toFixed(2)}
+                    °C
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.predictionBox}>
+                <Text style={styles.predictionLabel}>
+                  PREDICCIÓN EN{" "}
+                  {prediction.prediction_horizon_minutes} MIN
+                </Text>
+
+                <Text style={styles.predictionValue}>
+                  {Number(
+                    prediction.prediction_temperature_c
+                  ).toFixed(2)}
+                  °C
+                </Text>
+              </View>
+
+              <View style={styles.riskRow}>
+                <View>
+                  <Text style={styles.modelLabel}>
+                    RIESGO TÉRMICO
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.riskValue,
+                      {
+                        color: riskColor,
+                      },
+                    ]}
+                  >
+                    {Number(risk).toFixed(0)}%
                   </Text>
                 </View>
 
-                <Brain
-                  size={21}
-                  color="#22C55E"
+                <View
+                  style={[
+                    styles.riskIndicator,
+                    {
+                      backgroundColor:
+                        riskColor,
+                    },
+                  ]}
                 />
-              </View>
-
-              <View style={styles.risk}>
-                <Text style={styles.riskLabel}>
-                  RIESGO TÉRMICO
-                </Text>
-
-                <Text style={styles.riskValue}>
-                  {prediction.risk_percentage.toFixed(1)}%
-                </Text>
               </View>
 
               <View style={styles.recommendation}>
                 <Text style={styles.recommendationTitle}>
-                  Recomendación
+                  RECOMENDACIÓN
                 </Text>
 
-                <Text style={styles.recommendationText}>
+                <Text
+                  style={styles.recommendationText}
+                >
                   {prediction.recommendation}
                 </Text>
               </View>
-            </View>
-          </>
-        )}
+            </>
+          ) : (
+            <Text style={styles.noPrediction}>
+              No hay predicción disponible.
+            </Text>
+          )}
+        </View>
 
-        <View style={{ height: 40 }} />
+        <View style={styles.infoCard}>
+          <Gauge
+            size={20}
+            color="#64748B"
+          />
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.infoTitle}>
+              Fuente de datos
+            </Text>
+
+            <Text style={styles.infoText}>
+              PostgreSQL · IoT · MQTT
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ height: 35 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Metric({
+function MetricCard({
   icon,
   label,
   value,
@@ -310,12 +524,18 @@ function Metric({
   value: string;
 }) {
   return (
-    <View style={styles.metric}>
-      <View style={styles.metricIcon}>{icon}</View>
+    <View style={styles.metricCard}>
+      <View style={styles.metricIcon}>
+        {icon}
+      </View>
 
-      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricLabel}>
+        {label}
+      </Text>
 
-      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricValue}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -328,14 +548,14 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    paddingHorizontal: 18,
+    paddingHorizontal: 17,
   },
 
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 13,
-    paddingTop: 10,
+    gap: 12,
+    paddingTop: 12,
     paddingBottom: 20,
   },
 
@@ -348,50 +568,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  title: {
+  headerTitle: {
     color: "#F8FAFC",
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "800",
   },
 
-  subtitle: {
-    color: "#94A3B8",
-    fontSize: 12,
+  headerSubtitle: {
+    color: "#64748B",
+    fontSize: 11,
     marginTop: 3,
-  },
-
-  mainTemperature: {
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 22,
-    alignItems: "center",
-  },
-
-  temperatureIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: "#172033",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  temperature: {
-    color: "#F8FAFC",
-    fontSize: 46,
-    fontWeight: "800",
-    marginTop: 10,
   },
 
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 7,
-    paddingHorizontal: 12,
+    gap: 6,
+    borderRadius: 10,
+    paddingHorizontal: 9,
     paddingVertical: 7,
-    borderRadius: 20,
-    marginTop: 8,
   },
 
   statusDot: {
@@ -400,195 +595,281 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-  statusText: {
-    fontSize: 11,
+  statusBadgeText: {
+    fontSize: 9,
     fontWeight: "900",
   },
 
-  sectionTitle: {
-    color: "#F8FAFC",
-    fontSize: 17,
+  temperatureCard: {
+    backgroundColor: "#131B2E",
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 22,
+  },
+
+  temperatureLabel: {
+    color: "#64748B",
+    fontSize: 10,
     fontWeight: "800",
-    marginTop: 24,
-    marginBottom: 11,
+    letterSpacing: 0.8,
+  },
+
+  temperatureMain: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    marginTop: 12,
+  },
+
+  temperatureValue: {
+    color: "#F8FAFC",
+    fontSize: 55,
+    fontWeight: "800",
+    marginLeft: 10,
+  },
+
+  temperatureUnit: {
+    color: "#94A3B8",
+    fontSize: 17,
+    marginLeft: 4,
+  },
+
+  updated: {
+    color: "#64748B",
+    fontSize: 10,
+    marginTop: 8,
   },
 
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    justifyContent: "space-between",
+    rowGap: 10,
+    marginTop: 12,
   },
 
-  metric: {
+  metricCard: {
     width: "48.5%",
-    backgroundColor: "#111827",
+    backgroundColor: "#131B2E",
     borderWidth: 1,
-    borderColor: "#243047",
+    borderColor: "#243049",
     borderRadius: 15,
     padding: 14,
   },
 
   metricIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    backgroundColor: "#172033",
-    justifyContent: "center",
+    width: 35,
+    height: 35,
+    borderRadius: 10,
+    backgroundColor: "#0A0F1C",
     alignItems: "center",
+    justifyContent: "center",
   },
 
   metricLabel: {
     color: "#64748B",
-    fontSize: 10,
-    marginTop: 10,
+    fontSize: 9,
+    fontWeight: "800",
+    marginTop: 12,
   },
 
   metricValue: {
-    color: "#F8FAFC",
+    color: "#E2E8F0",
     fontSize: 18,
     fontWeight: "800",
-    marginTop: 3,
+    marginTop: 4,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 25,
+    marginBottom: 11,
+  },
+
+  sectionTitle: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.7,
   },
 
   aiCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#131B2E",
     borderWidth: 1,
-    borderColor: "#243047",
-    borderRadius: 18,
+    borderColor: "#243049",
+    borderRadius: 17,
     padding: 17,
-    marginTop: 23,
   },
 
-  aiHeader: {
+  aiLoading: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 10,
+    paddingVertical: 20,
   },
 
-  aiIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor: "rgba(34,197,94,0.12)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  aiTitle: {
-    color: "#F8FAFC",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-
-  aiSubtitle: {
-    color: "#22C55E",
-    fontSize: 11,
-    marginTop: 3,
-  },
-
-  aiDescription: {
+  aiLoadingText: {
     color: "#94A3B8",
     fontSize: 12,
-    lineHeight: 19,
-    marginTop: 15,
   },
 
-  analyzeButton: {
-    height: 48,
-    borderRadius: 13,
-    backgroundColor: "#22C55E",
-    justifyContent: "center",
-    alignItems: "center",
+  modelRow: {
     flexDirection: "row",
-    gap: 8,
-    marginTop: 15,
+    justifyContent: "space-between",
   },
 
-  analyzeText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "800",
+  model: {
+    width: "48%",
+    backgroundColor: "#0A0F1C",
+    borderRadius: 12,
+    padding: 13,
   },
 
-  predictionCard: {
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: "#243047",
-    borderRadius: 18,
-    padding: 18,
-  },
-
-  predictionLabel: {
+  modelLabel: {
     color: "#64748B",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "800",
   },
 
-  predictionTemperature: {
-    color: "#F8FAFC",
-    fontSize: 36,
+  modelValue: {
+    color: "#E2E8F0",
+    fontSize: 20,
     fontWeight: "800",
     marginTop: 6,
   },
 
-  modelResult: {
-    backgroundColor: "#172033",
-    borderRadius: 13,
-    padding: 14,
+  predictionBox: {
+    backgroundColor: "#0A0F1C",
+    borderRadius: 12,
+    padding: 15,
+    marginTop: 10,
+    alignItems: "center",
+  },
+
+  predictionLabel: {
+    color: "#64748B",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+
+  predictionValue: {
+    color: "#10B981",
+    fontSize: 31,
+    fontWeight: "800",
+    marginTop: 5,
+  },
+
+  riskRow: {
     marginTop: 15,
     flexDirection: "row",
     alignItems: "center",
-    gap: 9,
-  },
-
-  modelName: {
-    color: "#94A3B8",
-    fontSize: 10,
-  },
-
-  modelValue: {
-    color: "#F8FAFC",
-    fontSize: 15,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-
-  risk: {
-    marginTop: 14,
-    flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-  },
-
-  riskLabel: {
-    color: "#94A3B8",
-    fontSize: 10,
-    fontWeight: "700",
   },
 
   riskValue: {
-    color: "#22C55E",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
+    marginTop: 4,
+  },
+
+  riskIndicator: {
+    width: 65,
+    height: 7,
+    borderRadius: 5,
   },
 
   recommendation: {
-    backgroundColor: "rgba(34,197,94,0.08)",
-    borderRadius: 12,
+    marginTop: 15,
     padding: 13,
-    marginTop: 14,
+    borderRadius: 12,
+    backgroundColor: "#0A0F1C",
+    borderLeftWidth: 3,
+    borderLeftColor: "#10B981",
   },
 
   recommendationTitle: {
-    color: "#22C55E",
-    fontSize: 11,
+    color: "#64748B",
+    fontSize: 9,
     fontWeight: "800",
   },
 
   recommendationText: {
     color: "#CBD5E1",
+    fontSize: 12,
+    lineHeight: 19,
+    marginTop: 6,
+  },
+
+  noPrediction: {
+    color: "#64748B",
+    fontSize: 12,
+    paddingVertical: 20,
+    textAlign: "center",
+  },
+
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#131B2E",
+    borderWidth: 1,
+    borderColor: "#243049",
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 12,
+  },
+
+  infoTitle: {
+    color: "#CBD5E1",
     fontSize: 11,
-    lineHeight: 17,
-    marginTop: 5,
+    fontWeight: "700",
+  },
+
+  infoText: {
+    color: "#64748B",
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 25,
+  },
+
+  loadingText: {
+    color: "#64748B",
+    fontSize: 13,
+    marginTop: 12,
+  },
+
+  errorTitle: {
+    color: "#FCA5A5",
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  errorText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 8,
+  },
+
+  retryButton: {
+    backgroundColor: "#10B981",
+    borderRadius: 10,
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    marginTop: 18,
+  },
+
+  retryText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "800",
   },
 });
