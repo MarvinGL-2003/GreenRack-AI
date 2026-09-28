@@ -1,180 +1,563 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import {
+  ArrowLeft,
+  LogOut,
+  Mail,
+  ShieldCheck,
+  User,
+} from "lucide-react-native";
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
+import {
+  getMe,
+  removeToken,
+} from "../services/api";
+
+interface UserData {
+  id: number;
+  name: string;
+  email: string;
+  role: "admin" | "operator";
+  active?: boolean;
+  created_at?: string;
+}
+
+export default function ProfileScreen() {
+  const [user, setUser] =
+    useState<UserData | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [loggingOut, setLoggingOut] =
+    useState(false);
+
+  const loadProfile =
+    useCallback(async () => {
+      try {
+        setLoading(true);
+
+        const response = await getMe();
+
+        if (response.success) {
+          setUser(response.user);
+        }
+      } catch (error) {
+        console.error(
+          "Error cargando perfil:",
+          error
+        );
+      } finally {
+        setLoading(false);
+      }
+    }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Cerrar sesión",
+      "¿Deseas cerrar tu sesión actual?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Cerrar sesión",
+          style: "destructive",
+          onPress: performLogout,
+        },
+      ]
+    );
   };
-  const theme = useTheme();
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+  const performLogout = async () => {
+    try {
+      setLoggingOut(true);
+
+      await removeToken();
+
+      router.replace("/login");
+    } catch (error) {
+      console.error(
+        "Error cerrando sesión:",
+        error
+      );
+
+      setLoggingOut(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.center}>
+          <ActivityIndicator
+            size="large"
+            color="#10B981"
+          />
+
+          <Text style={styles.loadingText}>
+            Cargando perfil...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const roleLabel =
+    user?.role === "admin"
+      ? "Administrador"
+      : "Operador";
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.back}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft
+              size={21}
+              color="#F8FAFC"
+            />
+          </TouchableOpacity>
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>
+              Perfil
+            </Text>
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+            <Text style={styles.subtitle}>
+              Información de la cuenta
+            </Text>
+          </View>
+        </View>
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
+        {/* USER CARD */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <User
+              size={36}
+              color="#10B981"
+            />
+          </View>
+
+          <Text style={styles.name}>
+            {user?.name ||
+              "Usuario GreenRack"}
+          </Text>
+
+          <Text style={styles.role}>
+            {roleLabel}
+          </Text>
+        </View>
+
+        {/* ACCOUNT INFORMATION */}
+        <View style={styles.sectionHeader}>
+          <ShieldCheck
+            size={20}
+            color="#10B981"
+          />
+
+          <Text style={styles.sectionTitle}>
+            INFORMACIÓN DE CUENTA
+          </Text>
+        </View>
+
+        <View style={styles.infoCard}>
+          <InfoRow
+            icon={
+              <User
+                size={18}
+                color="#64748B"
               />
-            </ThemedView>
-          </Collapsible>
+            }
+            label="Nombre"
+            value={
+              user?.name ||
+              "No disponible"
+            }
+          />
 
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+          <InfoRow
+            icon={
+              <Mail
+                size={18}
+                color="#64748B"
+              />
+            }
+            label="Correo electrónico"
+            value={
+              user?.email ||
+              "No disponible"
+            }
+          />
 
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+          <InfoRow
+            icon={
+              <ShieldCheck
+                size={18}
+                color="#64748B"
+              />
+            }
+            label="Rol"
+            value={roleLabel}
+          />
 
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+          <InfoRow
+            icon={
+              <ShieldCheck
+                size={18}
+                color="#64748B"
+              />
+            }
+            label="Estado"
+            value={
+              user?.active === false
+                ? "Inactivo"
+                : "Activo"
+            }
+            last
+          />
+        </View>
+
+        {/* SESSION */}
+        <View style={styles.sectionHeader}>
+          <LogOut
+            size={20}
+            color="#F59E0B"
+          />
+
+          <Text style={styles.sectionTitle}>
+            SESIÓN
+          </Text>
+        </View>
+
+        <View style={styles.sessionCard}>
+          <Text style={styles.sessionTitle}>
+            Sesión actual
+          </Text>
+
+          <Text style={styles.sessionText}>
+            Tu sesión está protegida mediante
+            autenticación JWT.
+          </Text>
+
+          <TouchableOpacity
+            style={[
+              styles.logoutButton,
+              loggingOut &&
+                styles.logoutDisabled,
+            ]}
+            onPress={handleLogout}
+            disabled={loggingOut}
+          >
+            {loggingOut ? (
+              <ActivityIndicator
+                size="small"
+                color="#FFFFFF"
+              />
+            ) : (
+              <>
+                <LogOut
+                  size={18}
+                  color="#FFFFFF"
+                />
+
+                <Text
+                  style={styles.logoutText}
+                >
+                  CERRAR SESIÓN
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* FOOTER */}
+        <View style={styles.footer}>
+          <Text style={styles.footerTitle}>
+            GREENRACK AI
+          </Text>
+
+          <Text style={styles.footerText}>
+            IA • IoT • MONITOREO
+          </Text>
+        </View>
+
+        <View style={{ height: 35 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function InfoRow({
+  icon,
+  label,
+  value,
+  last = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.infoRow,
+        !last && styles.infoRowBorder,
+      ]}
+    >
+      <View style={styles.infoIcon}>
+        {icon}
+      </View>
+
+      <View style={styles.infoContent}>
+        <Text style={styles.infoLabel}>
+          {label}
+        </Text>
+
+        <Text style={styles.infoValue}>
+          {value}
+        </Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  safeArea: {
     flex: 1,
+    backgroundColor: "#0A0F1C",
   },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
+
   container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
+    flex: 1,
+    paddingHorizontal: 17,
   },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
+
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 12,
+    paddingBottom: 22,
   },
-  centerText: {
-    textAlign: 'center',
+
+  back: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#131B2E",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  pressed: {
-    opacity: 0.7,
+
+  title: {
+    color: "#F8FAFC",
+    fontSize: 25,
+    fontWeight: "800",
   },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
+
+  subtitle: {
+    color: "#64748B",
+    fontSize: 12,
+    marginTop: 3,
   },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
+
+  profileCard: {
+    backgroundColor: "#131B2E",
+    borderWidth: 1,
+    borderColor: "#243049",
+    borderRadius: 18,
+    padding: 25,
+    alignItems: "center",
   },
-  collapsibleContent: {
-    alignItems: 'center',
+
+  avatar: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: "#0A0F1C",
+    borderWidth: 1,
+    borderColor: "#10B981",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
+
+  name: {
+    color: "#F8FAFC",
+    fontSize: 21,
+    fontWeight: "800",
+    marginTop: 14,
+    textAlign: "center",
   },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+
+  role: {
+    color: "#10B981",
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 5,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    marginTop: 24,
+    marginBottom: 11,
+  },
+
+  sectionTitle: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.7,
+  },
+
+  infoCard: {
+    backgroundColor: "#131B2E",
+    borderWidth: 1,
+    borderColor: "#243049",
+    borderRadius: 17,
+    paddingHorizontal: 15,
+  },
+
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+  },
+
+  infoRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#243049",
+  },
+
+  infoIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "#0A0F1C",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  infoContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+
+  infoLabel: {
+    color: "#64748B",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+
+  infoValue: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+
+  sessionCard: {
+    backgroundColor: "#131B2E",
+    borderWidth: 1,
+    borderColor: "#243049",
+    borderRadius: 17,
+    padding: 17,
+  },
+
+  sessionTitle: {
+    color: "#E2E8F0",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  sessionText: {
+    color: "#64748B",
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 6,
+  },
+
+  logoutButton: {
+    height: 49,
+    backgroundColor: "#EF4444",
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 17,
+  },
+
+  logoutDisabled: {
+    opacity: 0.6,
+  },
+
+  logoutText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+
+  footer: {
+    alignItems: "center",
+    marginTop: 28,
+  },
+
+  footerTitle: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+
+  footerText: {
+    color: "#334155",
+    fontSize: 9,
+    marginTop: 5,
+    letterSpacing: 1,
+  },
+
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    color: "#64748B",
+    fontSize: 13,
+    marginTop: 12,
   },
 });
+

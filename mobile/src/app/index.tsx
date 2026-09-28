@@ -20,6 +20,7 @@ import {
   Gauge,
   Server,
   Thermometer,
+  UserCircle,
   Wifi,
   WifiOff,
   Zap,
@@ -81,7 +82,9 @@ function getStatus(temperature: number) {
   };
 }
 
-function getLatestRacks(telemetry: Telemetry[]): RackData[] {
+function getLatestRacks(
+  telemetry: Telemetry[]
+): RackData[] {
   const latestByRack = new Map<number, Telemetry>();
 
   telemetry.forEach((item) => {
@@ -133,13 +136,21 @@ function MetricCard({
 }) {
   return (
     <View style={styles.metricCard}>
-      <View style={styles.metricIcon}>{icon}</View>
+      <View style={styles.metricIcon}>
+        {icon}
+      </View>
 
-      <Text style={styles.metricTitle}>{title}</Text>
+      <Text style={styles.metricTitle}>
+        {title}
+      </Text>
 
-      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricValue}>
+        {value}
+      </Text>
 
-      <Text style={styles.metricSubtitle}>{subtitle}</Text>
+      <Text style={styles.metricSubtitle}>
+        {subtitle}
+      </Text>
     </View>
   );
 }
@@ -204,26 +215,38 @@ function RackCard({ rack }: { rack: RackData }) {
       <View style={styles.rackMetrics}>
         <View style={styles.rackMetric}>
           <Cpu size={15} color={COLORS.blue} />
+
           <Text style={styles.rackMetricValue}>
             {rack.cpu.toFixed(1)}%
           </Text>
-          <Text style={styles.rackMetricLabel}>CPU</Text>
+
+          <Text style={styles.rackMetricLabel}>
+            CPU
+          </Text>
         </View>
 
         <View style={styles.rackMetric}>
           <Activity size={15} color={COLORS.cyan} />
+
           <Text style={styles.rackMetricValue}>
             {rack.airflow.toFixed(1)}
           </Text>
-          <Text style={styles.rackMetricLabel}>Airflow</Text>
+
+          <Text style={styles.rackMetricLabel}>
+            Airflow
+          </Text>
         </View>
 
         <View style={styles.rackMetric}>
           <Zap size={15} color={COLORS.yellow} />
+
           <Text style={styles.rackMetricValue}>
             {rack.power.toFixed(1)}
           </Text>
-          <Text style={styles.rackMetricLabel}>kW</Text>
+
+          <Text style={styles.rackMetricLabel}>
+            kW
+          </Text>
         </View>
       </View>
 
@@ -232,30 +255,47 @@ function RackCard({ rack }: { rack: RackData }) {
           Humedad {rack.humidity.toFixed(1)}%
         </Text>
 
-        <ArrowRight size={17} color={COLORS.muted} />
+        <ArrowRight
+          size={17}
+          color={COLORS.muted}
+        />
       </View>
     </TouchableOpacity>
   );
 }
 
 export default function Dashboard() {
-  const [telemetry, setTelemetry] = useState<RackData[]>([]);
-  const [health, setHealth] = useState<AIHealth | null>(null);
-  const [metrics, setMetrics] = useState<AIMetrics | null>(null);
+  const [telemetry, setTelemetry] =
+    useState<RackData[]>([]);
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [health, setHealth] =
+    useState<AIHealth | null>(null);
+
+  const [metrics, setMetrics] =
+    useState<AIMetrics | null>(null);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [telemetryData, healthData, metricsData] =
-        await Promise.all([
-          getTelemetry(),
-          getHealth(),
-          getMetrics(),
-        ]);
+      const [
+        telemetryData,
+        healthData,
+        metricsData,
+      ] = await Promise.all([
+        getTelemetry(),
+        getHealth(),
+        getMetrics(),
+      ]);
 
-      setTelemetry(getLatestRacks(telemetryData));
+      setTelemetry(
+        getLatestRacks(telemetryData)
+      );
+
       setHealth(healthData);
       setMetrics(metricsData);
     } catch (error) {
@@ -285,22 +325,26 @@ export default function Dashboard() {
     loadData();
   };
 
-  const connected = health?.status === "ok";
+  const connected =
+    health?.status === "ok";
 
-  const criticalRacks = telemetry.filter(
-    (rack) => rack.temperature >= 27
-  );
+  const criticalRacks =
+    telemetry.filter(
+      (rack) => rack.temperature >= 27
+    );
 
-  const warningRacks = telemetry.filter(
-    (rack) =>
-      rack.temperature >= 25.5 &&
-      rack.temperature < 27
-  );
+  const warningRacks =
+    telemetry.filter(
+      (rack) =>
+        rack.temperature >= 25.5 &&
+        rack.temperature < 27
+    );
 
   const averageTemperature =
     telemetry.length > 0
       ? telemetry.reduce(
-          (sum, rack) => sum + rack.temperature,
+          (sum, rack) =>
+            sum + rack.temperature,
           0
         ) / telemetry.length
       : 0;
@@ -326,7 +370,7 @@ export default function Dashboard() {
         {/* HEADER */}
 
         <View style={styles.header}>
-          <View>
+          <View style={styles.headerInfo}>
             <View style={styles.brandRow}>
               <View style={styles.logo}>
                 <Activity
@@ -349,40 +393,57 @@ export default function Dashboard() {
             </Text>
           </View>
 
-          <View
-            style={[
-              styles.connection,
-              {
-                borderColor: connected
-                  ? `${COLORS.primary}59`
-                  : `${COLORS.red}59`,
-              },
-            ]}
-          >
-            {connected ? (
-              <Wifi
-                size={17}
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.profileButton}
+              activeOpacity={0.8}
+              onPress={() =>
+                router.push("/explore")
+              }
+            >
+              <UserCircle
+                size={21}
                 color={COLORS.primary}
               />
-            ) : (
-              <WifiOff
-                size={17}
-                color={COLORS.red}
-              />
-            )}
+            </TouchableOpacity>
 
-            <Text
+            <View
               style={[
-                styles.connectionText,
+                styles.connection,
                 {
-                  color: connected
-                    ? COLORS.primary
-                    : COLORS.red,
+                  borderColor: connected
+                    ? `${COLORS.primary}59`
+                    : `${COLORS.red}59`,
                 },
               ]}
             >
-              {connected ? "ONLINE" : "OFFLINE"}
-            </Text>
+              {connected ? (
+                <Wifi
+                  size={17}
+                  color={COLORS.primary}
+                />
+              ) : (
+                <WifiOff
+                  size={17}
+                  color={COLORS.red}
+                />
+              )}
+
+              <Text
+                style={[
+                  styles.connectionText,
+                  {
+                    color: connected
+                      ? COLORS.primary
+                      : COLORS.red,
+                  },
+                ]}
+              >
+                {connected
+                  ? "ONLINE"
+                  : "OFFLINE"}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -408,7 +469,9 @@ export default function Dashboard() {
                   : "Sistema sin conexión"}
               </Text>
 
-              <Text style={styles.systemSubtitle}>
+              <Text
+                style={styles.systemSubtitle}
+              >
                 MQTT + Backend + PostgreSQL + IA
               </Text>
             </View>
@@ -441,7 +504,9 @@ export default function Dashboard() {
             title="Temperatura"
             value={
               telemetry.length > 0
-                ? `${averageTemperature.toFixed(1)}°C`
+                ? `${averageTemperature.toFixed(
+                    1
+                  )}°C`
                 : "--"
             }
             subtitle="Promedio de racks"
@@ -455,7 +520,9 @@ export default function Dashboard() {
               />
             }
             title="Racks"
-            value={String(telemetry.length)}
+            value={String(
+              telemetry.length
+            )}
             subtitle="Monitoreados"
           />
 
@@ -496,7 +563,9 @@ export default function Dashboard() {
               Racks monitoreados
             </Text>
 
-            <Text style={styles.sectionSubtitle}>
+            <Text
+              style={styles.sectionSubtitle}
+            >
               Telemetría IoT en tiempo real
             </Text>
           </View>
@@ -512,7 +581,8 @@ export default function Dashboard() {
           </TouchableOpacity>
         </View>
 
-        {loading && telemetry.length === 0 ? (
+        {loading &&
+        telemetry.length === 0 ? (
           <View style={styles.loadingCard}>
             <ActivityIndicator
               size="small"
@@ -568,7 +638,9 @@ export default function Dashboard() {
                 GreenRack Predictive AI
               </Text>
 
-              <Text style={styles.aiSubtitle}>
+              <Text
+                style={styles.aiSubtitle}
+              >
                 Predicción térmica a 15 minutos
               </Text>
             </View>
@@ -741,14 +813,19 @@ export default function Dashboard() {
 
             <View style={{ flex: 1 }}>
               <Text style={styles.alertTitle}>
-                Rack #{String(rack.id).padStart(
+                Rack #
+                {String(rack.id).padStart(
                   2,
                   "0"
-                )} · Crítico
+                )}{" "}
+                · Crítico
               </Text>
 
-              <Text style={styles.alertSubtitle}>
-                {rack.temperature.toFixed(1)}°C ·
+              <Text
+                style={styles.alertSubtitle}
+              >
+                {rack.temperature.toFixed(1)}°C
+                {" · "}
                 CPU {rack.cpu.toFixed(1)}%
               </Text>
             </View>
@@ -800,7 +877,9 @@ export default function Dashboard() {
                   · Advertencia
                 </Text>
 
-                <Text style={styles.alertSubtitle}>
+                <Text
+                  style={styles.alertSubtitle}
+                >
                   {rack.temperature.toFixed(1)}°C
                 </Text>
               </View>
@@ -902,6 +981,26 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     paddingTop: 12,
     paddingBottom: 20,
+  },
+
+  headerInfo: {
+    flex: 1,
+  },
+
+  headerActions: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+
+  profileButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   brandRow: {
