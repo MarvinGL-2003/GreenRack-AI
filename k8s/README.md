@@ -79,11 +79,8 @@ kubectl get pods -n greenrack -w                       # ver los pods en tiempo 
 
 ## Actualizar después de cambiar código
 
-Volver a ejecutar `deploy.ps1` y reiniciar el deployment modificado:
-
-```powershell
-kubectl rollout restart deployment/backend -n greenrack
-```
+Volver a ejecutar `deploy.ps1`: reconstruye las imágenes y reinicia los pods
+para que usen la versión nueva (los manifiestos usan `imagePullPolicy: Always`).
 
 ## Eliminar todo
 
@@ -95,7 +92,7 @@ kubectl delete namespace greenrack
 
 | Síntoma | Solución |
 |---|---|
-| `ErrImageNeverPull` / `ImagePullBackOff` | Las imágenes no se construyeron en el mismo Docker que usa Kubernetes. Volver a ejecutar `deploy.ps1`. Con minikube: `minikube image load greenrack/backend:1.0` (y las demás). |
+| `ErrImagePull` / `ImagePullBackOff` | Las imágenes no se construyeron en el mismo Docker que usa Kubernetes. Volver a ejecutar `deploy.ps1`. Con minikube: cambiar `imagePullPolicy` a `IfNotPresent` y ejecutar `minikube image load greenrack/backend:1.0` (y las demás). |
 | `localhost:4000` no responde | `kubectl port-forward svc/backend 4000:4000 -n greenrack` |
 | `localhost:5173` no responde | `kubectl port-forward svc/frontend 5173:5173 -n greenrack` |
 | `ai-service` en `OOMKilled` | Dar más RAM a Docker Desktop o subir `limits.memory` en `04-ai-service.yaml`. |

@@ -19,7 +19,13 @@ kubectl create configmap postgres-init -n greenrack \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "== 3/4 Aplicando manifiestos =="
+ya_desplegado=false
+kubectl get deployment backend -n greenrack >/dev/null 2>&1 && ya_desplegado=true
 kubectl apply -f k8s/
+# Si ya estaba desplegado, reinicia los pods para que usen las imágenes recién construidas
+if [ "$ya_desplegado" = true ]; then
+  kubectl rollout restart deployment/backend deployment/frontend deployment/ai-service deployment/iot -n greenrack
+fi
 
 echo "== 4/4 Esperando a que los pods estén listos (la IA tarda un poco) =="
 for d in postgres mqtt ai-service backend iot frontend; do

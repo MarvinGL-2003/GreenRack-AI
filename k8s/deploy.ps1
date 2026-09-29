@@ -23,7 +23,15 @@ Run "kubectl apply -f k8s/00-namespace.yaml"
 Run "kubectl create configmap postgres-init -n greenrack --from-file=01-schema.sql=database/schema.sql --from-file=02-init-user.sql=database/init-user.sql --dry-run=client -o yaml | kubectl apply -f -"
 
 Write-Host "== 3/4 Aplicando manifiestos ==" -ForegroundColor Green
+$ErrorActionPreference = "Continue"
+kubectl get deployment backend -n greenrack 2>&1 | Out-Null
+$yaDesplegado = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = "Stop"
 Run "kubectl apply -f k8s/"
+# Si ya estaba desplegado, reinicia los pods para que usen las imágenes recién construidas
+if ($yaDesplegado) {
+    Run "kubectl rollout restart deployment/backend deployment/frontend deployment/ai-service deployment/iot -n greenrack"
+}
 
 Write-Host "== 4/4 Esperando a que los pods estén listos (la IA tarda un poco) ==" -ForegroundColor Green
 foreach ($d in "postgres", "mqtt", "ai-service", "backend", "iot", "frontend") {

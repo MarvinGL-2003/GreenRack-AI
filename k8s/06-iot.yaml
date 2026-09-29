@@ -26,7 +26,7 @@ spec:
       containers:
         - name: iot
           image: greenrack/iot:1.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always # toma siempre la última imagen construida en Docker Desktop
           env:
             - name: MQTT_BROKER
               value: "mqtt"

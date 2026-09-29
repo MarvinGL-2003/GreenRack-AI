@@ -21,7 +21,7 @@ spec:
       containers:
         - name: frontend
           image: greenrack/frontend:1.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always # toma siempre la última imagen construida en Docker Desktop
           ports:
             - containerPort: 80
           readinessProbe:
