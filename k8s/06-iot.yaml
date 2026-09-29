@@ -1,0 +1,47 @@
+# Nodo IoT simulado: publica telemetría de los racks en MQTT cada 5 s.
+# No necesita Service porque nadie se conecta a él.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iot
+  namespace: greenrack
+  labels:
+    app: iot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: iot
+  template:
+    metadata:
+      labels:
+        app: iot
+    spec:
+      enableServiceLinks: false
+      # Espera a que el broker MQTT acepte conexiones antes de arrancar el nodo
+      initContainers:
+        - name: wait-for-mqtt
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z mqtt 1883; do echo esperando MQTT; sleep 2; done"]
+      containers:
+        - name: iot
+          image: greenrack/iot:1.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MQTT_BROKER
+              value: "mqtt"
+            - name: MQTT_PORT
+              value: "1883"
+            - name: MQTT_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: greenrack-config
+                  key: MQTT_TOPIC
+            - name: PYTHONUNBUFFERED
+              value: "1" # para ver los print() en kubectl logs
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

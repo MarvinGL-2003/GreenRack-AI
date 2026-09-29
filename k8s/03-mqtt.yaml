@@ -1,0 +1,64 @@
+# Broker MQTT (Mosquitto) que recibe la telemetría del nodo IoT.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+  namespace: greenrack
+data:
+  mosquitto.conf: |
+    listener 1883 0.0.0.0
+    allow_anonymous true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt
+  namespace: greenrack
+  labels:
+    app: mqtt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt
+  template:
+    metadata:
+      labels:
+        app: mqtt
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: mosquitto
+          image: eclipse-mosquitto:2
+          ports:
+            - containerPort: 1883
+          readinessProbe:
+            tcpSocket:
+              port: 1883
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt
+  namespace: greenrack
+spec:
+  selector:
+    app: mqtt
+  ports:
+    - port: 1883
+      targetPort: 1883

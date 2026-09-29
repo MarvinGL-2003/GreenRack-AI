@@ -1,0 +1,67 @@
+# API REST (Node.js + Express). Se expone en localhost:4000 porque el
+# frontend web y la app móvil llaman a esa URL.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: greenrack
+  labels:
+    app: backend
+spec:
+  # 1 réplica: cada réplica se suscribe a MQTT, así que con más de una
+  # la telemetría se guardaría duplicada.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: backend
+          image: greenrack/backend:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef:
+                name: greenrack-config
+            - secretRef:
+                name: greenrack-secret
+          env:
+            - name: DATABASE_URL
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: greenrack
+spec:
+  type: LoadBalancer # en Docker Desktop queda disponible en localhost:4000
+  selector:
+    app: backend
+  ports:
+    - port: 4000
+      targetPort: 4000

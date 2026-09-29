@@ -1,0 +1,24 @@
+# Configuración compartida (equivalente a las variables "environment"
+# del docker-compose.yml). Los valores sensibles van en el Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: greenrack-config
+  namespace: greenrack
+data:
+  PORT: "4000"
+  AI_SERVICE_URL: "http://ai-service:8000"
+  MQTT_BROKER: "mqtt://mqtt:1883"
+  MQTT_TOPIC: "greenrack/telemetry"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: greenrack-secret
+  namespace: greenrack
+type: Opaque
+stringData:
+  POSTGRES_DB: "greenrack"
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "password"
+  JWT_SECRET: "greenrack-k8s-development-secret"

@@ -1,0 +1,6 @@
+# Namespace que agrupa todos los recursos de GreenRack AI.
+# Para borrar todo el despliegue: kubectl delete namespace greenrack
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: greenrack

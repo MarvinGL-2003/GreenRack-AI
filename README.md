@@ -573,6 +573,34 @@ Si aparece eso, la comunicación IoT está funcionando correctamente.
 
 ---
 
+# 🐳 Docker Compose
+
+Levanta todo el sistema en contenedores (requiere Docker Desktop):
+
+```powershell
+docker compose up -d --build
+```
+
+Web: http://localhost:5173 · API: http://localhost:4000
+
+---
+
+# ☸️ Kubernetes
+
+Requiere Docker Desktop con Kubernetes activado
+(*Settings → Kubernetes → Enable Kubernetes*). Desde la raíz del proyecto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\k8s\deploy.ps1
+```
+
+Web: http://localhost:5173 · API: http://localhost:4000
+
+La guía completa (arquitectura, comandos y solución de problemas) está en
+[`k8s/README.md`](k8s/README.md).
+
+---
+
 # ⚠️ IMPORTANTE
 
 NO subir a GitHub:
