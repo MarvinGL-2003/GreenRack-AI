@@ -602,6 +602,9 @@ export default function GreenRackAI() {
         "http://localhost:4000/api/telemetry",
         {
           cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("greenrack_token")}`,
+          },
         }
       );
 
@@ -2786,6 +2789,7 @@ function Predictivo({
               headers: {
                 "Content-Type":
                   "application/json",
+                Authorization: `Bearer ${localStorage.getItem("greenrack_token")}`,
               },
               body: JSON.stringify({}),
             }
